@@ -3,7 +3,7 @@
 # Declare a mapping between common package names, and their platforms package names
 # '@' means its a group package, '@!' means its an executable command
 
-source ./distros.sh
+source $HOME/.alatar/bin/distros.sh
 
 declare -A pkg_arch=(
     [build-tools]=base-devel
@@ -12,6 +12,8 @@ declare -A pkg_arch=(
     [curl]=curl
     [rust]=rustup
     [neovim]="!install_nvim"
+    [window-manager]=sway
+    [imagemagick]=ImageMagick
 )
 
 declare -A pkg_fedora=(
@@ -21,6 +23,8 @@ declare -A pkg_fedora=(
     [curl]=curl
     [rust]=rustup
     [neovim]="!install_nvim"
+    [window-manager]=sway
+    [imagemagick]=ImageMagick
 )
 
 pkg() {

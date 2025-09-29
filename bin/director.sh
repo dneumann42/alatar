@@ -48,6 +48,7 @@ function build_directory_structure {
 
     mkdir -p "$HOME/Media/Videos" 
     mkdir -p "$HOME/Media/Pictures" 
+    mkdir -p "$HOME/Media/Pictures/Wallpapers"
     mkdir -p "$HOME/Media/Music" 
 
     mkdir -p "$HOME/.local/bin"
