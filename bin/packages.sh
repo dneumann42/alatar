@@ -14,6 +14,7 @@ declare -A pkg_arch=(
     [neovim]="!install_nvim"
     [window-manager]=sway
     [imagemagick]=ImageMagick
+    [qutebrowser]=qutebrowser
 )
 
 declare -A pkg_fedora=(
@@ -25,6 +26,7 @@ declare -A pkg_fedora=(
     [neovim]="!install_nvim"
     [window-manager]=sway
     [imagemagick]=ImageMagick
+    [qutebrowser]=qutebrowser
 )
 
 pkg() {
@@ -91,6 +93,8 @@ function install_nvim {
         install_pkgs rustup
         cargo install bob-nvim
     fi
+    sleep 0.1
+    bob use nightly
 }
 
 # All of the most important packages get installed here
