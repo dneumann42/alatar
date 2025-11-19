@@ -2,6 +2,7 @@
 
 source $HOME/.alatar/bin/packages.sh
 source $HOME/.alatar/bin/director.sh
+source $HOME/.alatar/bin/dots.sh
 
 is_help() {
   case "$1" in
@@ -161,7 +162,7 @@ command_cfg() {
       if is_help "$1"; then
         help_cfg_deploy
       else
-        echo "WIP"
+        deploy_dotfiles
       fi
       ;;
     help|-h|--help|h)

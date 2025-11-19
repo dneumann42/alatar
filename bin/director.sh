@@ -7,10 +7,10 @@
 # ~/.config/
 # ~/.repos/
 # ~/.alatar/
+# ~/.projects/
 #
 # ~/Documents/
 # ~/Downloads/
-# ~/Projects/
 # ~/Media/Videos
 # ~/Media/Music
 # ~/Media/Pictures
@@ -41,17 +41,16 @@ function move_to_media_folder {
 function build_directory_structure {
     mkdir -p "$HOME/.config"
     mkdir -p "$HOME/.repos"
+    mkdir -p "$HOME/.projects"
+    mkdir -p "$HOME/.local/bin"
 
-    mkdir -p "$HOME/Projects"
     mkdir -p "$HOME/Downloads"
     mkdir -p "$HOME/Documents"
 
+    mkdir -p "$HOME/Media/Music" 
     mkdir -p "$HOME/Media/Videos" 
     mkdir -p "$HOME/Media/Pictures" 
     mkdir -p "$HOME/Media/Pictures/Wallpapers"
-    mkdir -p "$HOME/Media/Music" 
-
-    mkdir -p "$HOME/.local/bin"
 }
 
 function sync_directory_structure {
