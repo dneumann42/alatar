@@ -23,20 +23,22 @@ function deploy_dotfiles {
 
     mkdir -p "$config_dir"
 
+    ln -sfn "$config_dir/zsh/zshenv" "$HOME/.zshenv" 
+    ln -sfn "$config_dir/zsh/zshrc" "$HOME/.zshrc" 
+    ln -sfn "$config_dir/zsh/zprofile" "$HOME/.zprofile" 
+    ln -sfn "$config_dir/zsh/zalias" "$HOME/.zalias" 
+
     for path in "$dots_dir"/*; do
         local name
         name="$(basename "$path")"
 
-        if [ "$name" = ".git" ]; then
+        if [[ "$name" = ".git" ]] || [[ "$name" = "zsh" ]]; then
             continue
         fi
 
         if [ -d "$path" ]; then
             ln -sfn "$path" "$config_dir/$name"
             echo "Linked $path -> $config_dir/$name"
-        elif [ "$name" = "zshenv" ]; then
-            ln -sfn "$path" "$HOME/.zshenv"
-            echo "Linked $path -> $HOME/.zshenv"
         fi
     done
 }

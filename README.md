@@ -1,6 +1,6 @@
 # Alatar 
 
-A simple computing environment by Dustin Neumann.
+A wizard's linux environment.
 
 Alatar supports Fedora Server and Archlinux
 
@@ -13,7 +13,7 @@ Clone this repository into `~/.alatar`
 git clone https://github.com/dneumann42/alatar.git $HOME/.alatar
 ```
 
-Cd into the new directory and run `sh ./alatar.sh`, this will take you into the terminal user interface wizard.
+`cd` into the new directory and run `sh ./alatar.sh`, this will display the help screen.
 
 ## Usage
 
