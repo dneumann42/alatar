@@ -1,103 +1,174 @@
 #!/usr/bin/env bash
 
-# Declare a mapping between common package names, and their platforms package names
-# '@' means its a group package, '@!' means its an executable command
+set -euo pipefail
 
-source $HOME/.alatar/bin/distros.sh
-
-declare -A pkg_arch=(
-    [build-tools]=base-devel
-    [ripgrep]=ripgrep
-    [git]=git
-    [curl]=curl
-    [rust]=rustup
-    [neovim]="!install_nvim"
-    [window-manager]=sway
-    [imagemagick]=ImageMagick
-    [qutebrowser]=qutebrowser
+declare -A pkg_suse=(
+  [build-tools]="@devel_basis|Base development toolchain"
+  [ripgrep]="ripgrep|Fast text search tool"
+  [git]="git|Git version control"
+  [curl]="curl|HTTP client"
+  [rust]="rustup|Rust toolchain (via rustup)"
+  [neovim]="!install_nvim|Neovim editor (managed via bob)"
+  [nim]="!install_nim|Nim programming language"
+  [notify]="libnotify-tools|Notifications"
+  [github-cli]="gh|Github cli tool"
+  [window-manager]="sway|Wayland window manager"
+  [imagemagick]="ImageMagick|Image processing utilities"
+  [qutebrowser]="qutebrowser|Keyboard-driven web browser"
+  [image-viewer]="swayimg|Wayland image viewer"
+  [pdf-viewer]="zathura zathura-plugin-pdf-mupdf|Vim PDF viewer"
 )
 
-declare -A pkg_fedora=(
-    [build-tools]="@development-tools"
-    [ripgrep]=ripgrep
-    [git]=git
-    [curl]=curl
-    [rust]=rustup
-    [neovim]="!install_nvim"
-    [window-manager]=sway
-    [imagemagick]=ImageMagick
-    [qutebrowser]=qutebrowser
-)
+ensure_rustup_default() {
+  command -v rustup >/dev/null 2>&1 || return 0
+  if ! rustup show active-toolchain >/dev/null 2>&1; then
+    rustup default stable
+  fi
+}
+
+pkg_spec() {
+  local key="$1"
+  local v="${pkg_suse[$key]:-}"
+  [[ -n "$v" ]] || { echo "$key"; return; }
+  echo "${v%%|*}"
+}
+
+pkg_doc() {
+  local key="$1"
+  local v="${pkg_suse[$key]:-}"
+  [[ -n "$v" ]] || { echo ""; return; }
+  [[ "$v" == *"|"* ]] && echo "${v#*|}" || echo ""
+}
 
 pkg() {
-    local key="$1"
-    case "$DISTRO" in
-        arch)   echo "${pkg_arch[$key]:-$key}" ;;
-        fedora) echo "${pkg_fedora[$key]:-$key}" ;;
-    esac
+  local key="$1"
+  echo "$(pkg_spec "$key")"
 }
 
 list_pkgs() {
-  case "$DISTRO" in
-    arch)
-      echo "Arch packages:"
-      for k in "${!pkg_arch[@]}"; do
-        printf "  %-15s -> %s\n" "$k" "${pkg_arch[$k]}"
-      done
-      ;;
-    fedora)
-      echo "Fedora packages:"
-      for k in "${!pkg_fedora[@]}"; do
-        printf "  %-15s -> %s\n" "$k" "${pkg_fedora[$k]}"
-      done
-      ;;
-    *)
-      echo "Unknown DISTRO: $DISTRO" >&2
-      return 1
-      ;;
-  esac
+  echo "openSUSE packages:"
+  for k in "${!pkg_suse[@]}"; do
+    printf "  %-15s -> %s\n" "$k" "$(pkg_spec "$k")"
+  done
 }
 
 install_pkgs() {
   local -a pkgs=()
-  local -a groups=()
+  local -a patterns=()
   local -a cmds=()
 
   for key in "$@"; do
+    local spec
+    spec="$(pkg "$key")"   # may be: "@pattern", "!cmd", or "pkg1 pkg2 ..."
+
+    # Split spec into words so one keyword can map to multiple packages
+    local -a items=()
+    read -r -a items <<< "$spec"
+
     local name
-    name="$(pkg "$key")"
-    if [[ $name == @* ]]; then
-      groups+=("${name#@}")
-    elif [[ $name == !* ]]; then
+    for name in "${items[@]}"; do
+      if [[ $name == @* ]]; then
+        patterns+=("${name#@}")
+      elif [[ $name == !* ]]; then
         cmds+=("${name#!}")
-    else
-      pkgs+=("$name")
-    fi
+      else
+        pkgs+=("$name")
+      fi
+    done
   done
 
-  if [[ "$DISTRO" == arch ]]; then
-    if ((${#pkgs[@]})); then sudo pacman -Sy --needed --noconfirm "${pkgs[@]}"; fi
-    if ((${#groups[@]})); then sudo pacman -Sy --needed --noconfirm "${groups[@]}"; fi
-    if ((${#cmds[@]})); then "${cmds[@]}"; fi
-  else
-    if ((${#groups[@]})); then sudo dnf group install -y "${groups[@]}"; fi
-    if ((${#pkgs[@]})); then sudo dnf install -y "${pkgs[@]}"; fi
-    if ((${#cmds[@]})); then "${cmds[@]}"; fi
+  if ((${#patterns[@]})); then
+    sudo zypper --non-interactive install -t pattern "${patterns[@]}"
+  fi
+
+  if ((${#pkgs[@]})); then
+    local -a missing_pkgs=()
+
+    for pkg in "${pkgs[@]}"; do
+      if ! rpm -q "$pkg" >/dev/null 2>&1; then
+        missing_pkgs+=("$pkg")
+      fi
+    done
+
+    if ((${#missing_pkgs[@]})); then
+      sudo zypper --non-interactive install "${missing_pkgs[@]}"
+    fi
+  fi
+
+  if ((${#cmds[@]})); then
+    "${cmds[@]}"
   fi
 }
 
-function install_nvim {
-    if [[ "$DISTRO" == arch ]]; then
-        sudo pacman -Sy --needed --noconfirm bob
-    else
-        install_pkgs rustup
-        cargo install bob-nvim
-    fi
-    sleep 0.1
-    bob use nightly
+install_nvim() {
+    install_pkgs rust
+    ensure_rustup_default
+
+  if command -v bob >/dev/null 2>&1; then
+    :
+  else
+    cargo install bob-nvim
+  fi
+
+  sleep 0.1
+  bob use nightly
 }
 
-# All of the most important packages get installed here
-function install_prelude {
-    install_pkgs build-tools git curl ripgrep
+install_nim() {
+	if [ $(command -v grabnim >/dev/null) ]; then
+		mkdir -p $HOME/.cache/
+		curl https://codeberg.org/janAkali/grabnim/raw/branch/master/misc/install.sh > $HOME/.cache/install-grabnim.sh
+		sh $HOME/.cache/install-grabnim.sh
+		grabnim
+	fi
+
+}
+
+show-packages-help() {
+    cat <<'EOF'
+Usage: alatar packages <sub-command> [args...]
+
+Sub-Commands:
+        l|list          List logical package names and their distro mappings
+        i|install       Install one or more logical packages
+        p|prelude       Install the core/prelude package set
+
+Logical Packages:
+EOF
+    for k in $(printf "%s\n" "${!pkg_suse[@]}" | LC_ALL=C sort); do
+        printf "        %-15s %s\n" "$k" "$(pkg_doc "$k")"
+    done
+    cat <<'EOF'
+
+Examples:
+        alatar packages list
+        alatar packages install git neovim ripgrep
+        alatar packages prelude
+EOF
+}
+
+install_prelude() {
+  install_pkgs build-tools git curl ripgrep
+}
+
+is_help() {
+  case "$1" in
+    help|h) return 0 ;;
+    *) return 1 ;;
+  esac
+}
+
+alatar-packages() {
+  sub="${1:-}"
+  shift || true
+  if [ -z "$sub" ] || is_help "$sub"; then
+    show-packages-help
+    return
+  fi
+  case "$sub" in
+      list|ls) list_pkgs ;;
+      install|i) install_pkgs "$@" ;;
+      install-all) install_pkgs "${!pkg_suse[@]}" ;;
+      *) echo "Not a valid pkg command" ;;
+  esac
 }
