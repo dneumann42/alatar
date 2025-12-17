@@ -7,6 +7,7 @@ declare -A pkg_suse=(
   [ripgrep]="ripgrep|Fast text search tool"
   [git]="git|Git version control"
   [curl]="curl|HTTP client"
+  [fltk]="fltk-devel|FLTK GUI toolkit"
   [rust]="rustup|Rust toolchain (via rustup)"
   [neovim]="!install_nvim|Neovim editor (managed via bob)"
   [nim]="!install_nim|Nim programming language"
@@ -129,9 +130,9 @@ show-packages-help() {
 Usage: alatar packages <sub-command> [args...]
 
 Sub-Commands:
-        l|list          List logical package names and their distro mappings
-        i|install       Install one or more logical packages
-        p|prelude       Install the core/prelude package set
+        l,list          List logical package names and their distro mappings
+        i,install       Install one or more logical packages
+        p,prelude       Install the core/prelude package set
 
 Logical Packages:
 EOF

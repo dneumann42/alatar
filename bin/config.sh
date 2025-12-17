@@ -8,8 +8,8 @@ show-config-help() {
 Usage: alatar config <sub-command>
 
 Sub-Commands:
-	d|deploy	Deploys dot files by symlinking into $XDG_CONFIG_HOME
-	s|sync		Pull from origin of all remote config repos
+	d,deploy	Deploys dot files by symlinking into $XDG_CONFIG_HOME
+	s,sync		Pull from origin of all remote config repos
 EOF
 }
 

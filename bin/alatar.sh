@@ -8,10 +8,10 @@ show-help() {
 Usage: alatar <command> <sub-command> [options]
 
 Commands:
-	h|help					Show this help screen						
-	p|package				Package operations
-	c|config				Config operations
-	d|director				Directory operations
+	h,help					Show this help screen						
+	p,package				Package operations
+	c,config				Config operations
+	d,director				Directory operations
 
 Run: alatar <command> help			Show command help
      alatar <command> <sub-command> help       	Show command help
