@@ -3,21 +3,31 @@
 set -euo pipefail
 
 declare -A pkg_suse=(
-  [build-tools]="@devel_basis|Base development toolchain"
+  [build-tools]="@devel_basis meson clang-tools|Base development toolchain"
+  [backlight]="brightnessctl|Backlight control utility"
   [ripgrep]="ripgrep|Fast text search tool"
   [git]="git|Git version control"
   [curl]="curl|HTTP client"
   [fltk]="fltk-devel|FLTK GUI toolkit"
+  [jq]="jq|Command-line JSON processor"
   [rust]="rustup|Rust toolchain (via rustup)"
   [neovim]="!install_nvim|Neovim editor (managed via bob)"
   [nim]="!install_nim|Nim programming language"
   [notify]="libnotify-tools|Notifications"
   [github-cli]="gh|Github cli tool"
+  [playerctl]="playerctl|MPRIS media controller"
+  [pavucontrol]="pavucontrol|PulseAudio volume control"
+  [rofi]="rofi|Rofi application launcher"
+  [kitty]="kitty|Kitty GPU terminal emulator"
+  [zellij]="zellij|Terminal workspace/tmux alternative"
+  [yazi]="yazi|TUI file manager"
   [window-manager]="sway|Wayland window manager"
+  [waybar]="waybar|Wayland status bar"
   [imagemagick]="ImageMagick|Image processing utilities"
   [qutebrowser]="qutebrowser|Keyboard-driven web browser"
   [image-viewer]="swayimg|Wayland image viewer"
   [pdf-viewer]="zathura zathura-plugin-pdf-mupdf|Vim PDF viewer"
+  [nm-connection-editor]="NetworkManager-connection-editor|NetworkManager connection editor GUI"
 )
 
 ensure_rustup_default() {
