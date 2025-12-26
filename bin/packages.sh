@@ -28,6 +28,7 @@ declare -A pkg_suse=(
   [image-viewer]="swayimg|Wayland image viewer"
   [pdf-viewer]="zathura zathura-plugin-pdf-mupdf|Vim PDF viewer"
   [nm-connection-editor]="NetworkManager-connection-editor|NetworkManager connection editor GUI"
+  [rss]="newsboat|RSS feed reader"
 )
 
 ensure_rustup_default() {
