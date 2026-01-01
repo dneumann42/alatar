@@ -5,7 +5,7 @@ set -euo pipefail
 # Exits if the focused workspace is not a simple horizontal split with exactly
 # two tiling children (each child can itself be a stack/tabbed container).
 
-LEFT_PCT="${LEFT_PCT:-67}"   # Left side percent (approx 2/3)
+LEFT_PCT="${LEFT_PCT:-75}"   # Left side percent (approx 2/3)
 RIGHT_PCT=$((100 - LEFT_PCT))
 
 die() { echo "autobalance: $*" >&2; exit 1; }
