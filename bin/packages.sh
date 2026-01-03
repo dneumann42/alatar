@@ -31,6 +31,7 @@ declare -A pkg_suse=(
   [pdf-viewer]="zathura zathura-plugin-pdf-mupdf|Vim PDF viewer"
   [nm-connection-editor]="NetworkManager-connection-editor|NetworkManager connection editor GUI"
   [rss]="newsboat|RSS feed reader"
+  [python]="uv|Python development tool"
 )
 
 ensure_rustup_default() {
@@ -135,7 +136,6 @@ install_nim() {
 		sh $HOME/.cache/install-grabnim.sh
 		grabnim
 	fi
-
 }
 
 show-packages-help() {
