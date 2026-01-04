@@ -419,6 +419,20 @@ proc man_page_name_from_path {path} {
     return [lindex $parts 0]
 }
 
+proc man_ref_from_path {path} {
+    set name [file tail $path]
+    if {[string match "*.gz" $name]} {
+        set name [string range $name 0 end-3]
+    }
+    set parts [split $name "."]
+    if {[llength $parts] < 2} {
+        return [list "" ""]
+    }
+    set section [lindex $parts end]
+    set page [join [lrange $parts 0 end-1] "."]
+    return [list $page $section]
+}
+
 proc ensure_manual_fonts {} {
     global man_bold_font man_underline_font
     if {![info exists man_bold_font]} {
@@ -521,6 +535,121 @@ proc apply_manual_highlighting {text_widget} {
         }
         incr line_no
     }
+}
+
+proc manual_link_tag_name {page section} {
+    set raw [string tolower "${page}|${section}"]
+    set hex [binary encode hex $raw]
+    return "man_link_${hex}"
+}
+
+proc open_manual_by_ref {page section} {
+    global manuals_index
+    if {![info exists manuals_index]} {
+        return
+    }
+    set key [string tolower "${page}|${section}"]
+    if {![dict exists $manuals_index $key]} {
+        return
+    }
+    set path [dict get $manuals_index $key]
+    show_manual_by_path $path
+}
+
+proc open_manual_by_page {page} {
+    global manuals_page_index
+    if {![info exists manuals_page_index]} {
+        return
+    }
+    set key [string tolower $page]
+    if {![dict exists $manuals_page_index $key]} {
+        return
+    }
+    set path [dict get $manuals_page_index $key]
+    show_manual_by_path $path
+}
+
+proc apply_manual_links {text_widget} {
+    global manuals_index manuals_page_index theme
+    if {![info exists manuals_index] || ![info exists manuals_page_index]} {
+        return
+    }
+    if {[info exists ::manual_link_tags($text_widget)]} {
+        foreach tag $::manual_link_tags($text_widget) {
+            $text_widget tag remove $tag 1.0 end
+            $text_widget tag delete $tag
+        }
+    }
+    set ::manual_link_tags($text_widget) {}
+    set content [$text_widget get 1.0 end-1c]
+    set start 0
+    while {[regexp -indices -start $start -- {([A-Za-z0-9_+.-]+)\(([0-9][A-Za-z0-9]*)\)} $content match name section]} {
+        set match_start [lindex $match 0]
+        set match_end [lindex $match 1]
+        set page [string range $content [lindex $name 0] [lindex $name 1]]
+        set sect [string range $content [lindex $section 0] [lindex $section 1]]
+        set key [string tolower "${page}|${sect}"]
+        if {[dict exists $manuals_index $key]} {
+            set tag [manual_link_tag_name $page $sect]
+            if {[lsearch -exact $::manual_link_tags($text_widget) $tag] == -1} {
+                $text_widget tag configure $tag -underline 1
+                $text_widget tag bind $tag <Enter> [list $text_widget configure -cursor hand2]
+                $text_widget tag bind $tag <Leave> [list $text_widget configure -cursor xterm]
+                $text_widget tag bind $tag <Button-1> [list open_manual_by_ref $page $sect]
+                lappend ::manual_link_tags($text_widget) $tag
+            }
+            $text_widget tag add $tag "1.0 + $match_start chars" "1.0 + [expr {$match_end + 1}] chars"
+        }
+        set start [expr {$match_end + 1}]
+    }
+
+    set start 0
+    while {[regexp -indices -start $start -- {(<)?([A-Za-z0-9_+.-]+\.h)(>)?} $content match prefix header suffix]} {
+        set match_start [lindex $match 0]
+        set match_end [lindex $match 1]
+        set page [string range $content [lindex $header 0] [lindex $header 1]]
+        set key [string tolower $page]
+        if {[dict exists $manuals_page_index $key]} {
+            set tag [manual_link_tag_name $page ""]
+            if {[lsearch -exact $::manual_link_tags($text_widget) $tag] == -1} {
+                $text_widget tag configure $tag -underline 1
+                $text_widget tag bind $tag <Enter> [list $text_widget configure -cursor hand2]
+                $text_widget tag bind $tag <Leave> [list $text_widget configure -cursor xterm]
+                $text_widget tag bind $tag <Button-1> [list open_manual_by_page $page]
+                lappend ::manual_link_tags($text_widget) $tag
+            }
+            $text_widget tag add $tag "1.0 + $match_start chars" "1.0 + [expr {$match_end + 1}] chars"
+        }
+        set start [expr {$match_end + 1}]
+    }
+}
+
+proc man_section_rank {section} {
+    if {$section eq "0p"} {
+        return 0
+    }
+    if {[regexp {^3} $section]} {
+        return 1
+    }
+    if {[regexp {^2} $section]} {
+        return 2
+    }
+    if {[regexp {^1} $section]} {
+        return 3
+    }
+    if {[regexp {^0} $section]} {
+        return 4
+    }
+    if {[regexp {^5} $section]} {
+        return 5
+    }
+    if {[regexp {^7} $section]} {
+        return 6
+    }
+    if {[regexp {^8} $section]} {
+        return 7
+    }
+    return 99
 }
 
 proc ansi_256_color {idx} {
@@ -719,14 +848,8 @@ proc apply_ansi_segments {text_widget plain segments} {
     }
 }
 
-proc show_manual {args} {
-    global manuals_list manuals_filtered manuals_text manuals_tldr_text
-    set selection [$manuals_list curselection]
-    if {[llength $selection] == 0} {
-        return
-    }
-    set index [lindex $selection 0]
-    set path [lindex [lindex $manuals_filtered $index] 1]
+proc show_manual_by_path {path} {
+    global manuals_text manuals_tldr_text
     if {$path eq ""} {
         return
     }
@@ -747,6 +870,8 @@ proc show_manual {args} {
         $manuals_text delete 1.0 end
         $manuals_text insert end $plain
     }
+    apply_manual_highlighting $manuals_text
+    apply_manual_links $manuals_text
     $manuals_text configure -state disabled
 
     set page [man_page_name_from_path $path]
@@ -769,8 +894,19 @@ proc show_manual {args} {
     $manuals_tldr_text configure -state disabled
 }
 
+proc show_manual {args} {
+    global manuals_list manuals_filtered
+    set selection [$manuals_list curselection]
+    if {[llength $selection] == 0} {
+        return
+    }
+    set index [lindex $selection 0]
+    set path [lindex [lindex $manuals_filtered $index] 1]
+    show_manual_by_path $path
+}
+
 proc build_manuals_tab {notebook} {
-    global manuals_list manuals_text manuals_tldr_text manuals_items manuals_filtered manuals_search_var theme
+    global manuals_list manuals_text manuals_tldr_text manuals_items manuals_filtered manuals_search_var theme manuals_index manuals_page_index
     set manuals_tab [ttk::frame $notebook.manuals]
     $notebook add $manuals_tab -text "Manuals"
 
@@ -804,8 +940,23 @@ proc build_manuals_tab {notebook} {
     grid rowconfigure $manuals_frame 2 -weight 1
 
     set manuals_items {}
+    set manuals_index [dict create]
+    set manuals_page_index [dict create]
+    set manuals_page_rank [dict create]
     foreach path [list_man_files] {
         lappend manuals_items [list [format_man_display_name $path] $path]
+        set ref [man_ref_from_path $path]
+        set page [lindex $ref 0]
+        set section [lindex $ref 1]
+        if {$page ne "" && $section ne ""} {
+            dict set manuals_index [string tolower "${page}|${section}"] $path
+            set page_key [string tolower $page]
+            set rank [man_section_rank $section]
+            if {![dict exists $manuals_page_rank $page_key] || $rank < [dict get $manuals_page_rank $page_key]} {
+                dict set manuals_page_rank $page_key $rank
+                dict set manuals_page_index $page_key $path
+            }
+        }
     }
     populate_manuals_list $manuals_items
     bind $manuals_list <<ListboxSelect>> show_manual
