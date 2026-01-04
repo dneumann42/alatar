@@ -14,6 +14,10 @@ WALLPAPERS="$HOME/Pictures/wallpapers"
 
 mkdir -p "$WALLPAPERS"
 
+if [[ -d "$HOME/.cargo/bin" ]]; then
+  export PATH="$HOME/.cargo/bin:$PATH"
+fi
+
 function generate_default_wallpaper {
     notify-send "Generating default wallpaper, please wait..."
 
@@ -32,6 +36,19 @@ magick -seed $RANDOM -size 2560x1080 plasma:fractal \
     notify-send "Default wallpaper was generated."
 }
 
+apply_wallust() {
+  local wallust_bin=""
+  if command -v wallust >/dev/null 2>&1; then
+    wallust_bin="wallust"
+  elif [[ -x "$HOME/.cargo/bin/wallust" ]]; then
+    wallust_bin="$HOME/.cargo/bin/wallust"
+  fi
+
+  if [[ -n "$wallust_bin" ]]; then
+    "$wallust_bin" run --config-dir "$HOME/.config/wallust" --overwrite-cache "$WALLPAPER" || true
+  fi
+}
+
 set_wallpaper() {
     notify-send "Setting wallpaper"
   if [[ "${1##*.}" != "png" ]]; then
@@ -40,6 +57,7 @@ set_wallpaper() {
   else
     cp "$1" "$WALLPAPER"
   fi
+  apply_wallust
   swaymsg reload
 }
 
@@ -74,6 +92,7 @@ fi
 case "${1:-}" in
   set) set_wallpaper "${@:2}" ;;
   gen) generate_default_wallpaper
+       apply_wallust
        swaymsg reload ;;
   pick)
     PAPE="$(pick_wallpaper || true)"

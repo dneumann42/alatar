@@ -32,6 +32,7 @@ declare -A pkg_suse=(
   [nm-connection-editor]="NetworkManager-connection-editor|NetworkManager connection editor GUI"
   [rss]="newsboat|RSS feed reader"
   [python]="uv|Python development tool"
+  [wallust]="!ensure_wallust|A theme tool"
 )
 
 ensure_rustup_default() {
@@ -127,6 +128,16 @@ install_nvim() {
 
   sleep 0.1
   bob use nightly
+}
+
+ensure_wallust() {
+    install_pkgs rust
+    ensure_rustup_default
+    if command -v bob >/dev/null 2>&1; then
+	:
+    else
+	cargo install wallust
+    fi
 }
 
 install_nim() {
