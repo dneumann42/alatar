@@ -419,6 +419,306 @@ proc man_page_name_from_path {path} {
     return [lindex $parts 0]
 }
 
+proc ensure_manual_fonts {} {
+    global man_bold_font man_underline_font
+    if {![info exists man_bold_font]} {
+        array set base [font actual TkFixedFont]
+        set man_bold_font [font create -family $base(-family) -size $base(-size) -weight bold]
+        set man_underline_font [font create -family $base(-family) -size $base(-size) -underline 1]
+    }
+}
+
+proc decode_man_overstrike {content} {
+    set out ""
+    set bold_ranges {}
+    set underline_ranges {}
+    set i 0
+    set out_idx 0
+    set len [string length $content]
+    while {$i < $len} {
+        set ch [string index $content $i]
+        if {$i + 2 < $len && [string index $content [expr {$i + 1}]] eq "\b"} {
+            set c1 $ch
+            set c2 [string index $content [expr {$i + 2}]]
+            set out_ch $c2
+            set style ""
+            if {$c1 eq $c2} {
+                set style "bold"
+            } elseif {$c1 eq "_"} {
+                set style "underline"
+            } elseif {$c2 eq "_"} {
+                set style "underline"
+                set out_ch $c1
+            } else {
+                set style "bold"
+            }
+            append out $out_ch
+            if {$style eq "bold"} {
+                lappend bold_ranges [list $out_idx [expr {$out_idx + 1}]]
+            } elseif {$style eq "underline"} {
+                lappend underline_ranges [list $out_idx [expr {$out_idx + 1}]]
+            }
+            incr out_idx
+            incr i 3
+            continue
+        }
+        append out $ch
+        incr out_idx
+        incr i
+    }
+    return [list $out $bold_ranges $underline_ranges]
+}
+
+proc apply_manual_highlighting {text_widget} {
+    global theme
+    ensure_manual_fonts
+    global man_bold_font man_underline_font
+    $text_widget tag configure man_header -foreground $theme(selected_text) -background $theme(heading) -font $man_bold_font
+    $text_widget tag configure man_option -foreground $theme(border_active) -font $man_bold_font
+    $text_widget tag configure man_code -foreground $theme(text) -background $theme(heading_active)
+    $text_widget tag configure man_bold -font $man_bold_font -foreground $theme(text)
+    $text_widget tag configure man_underline -font $man_underline_font -foreground $theme(text)
+    $text_widget tag remove man_header 1.0 end
+    $text_widget tag remove man_option 1.0 end
+    $text_widget tag remove man_code 1.0 end
+    $text_widget tag remove man_name 1.0 end
+
+    set content [$text_widget get 1.0 end-1c]
+    set lines [split $content "\n"]
+    set line_no 1
+    set section ""
+    set code_sections {SYNOPSIS EXAMPLES EXAMPLE USAGE COMMANDS COMMAND}
+    set option_sections {OPTIONS OPTION FLAGS FLAG}
+    foreach line $lines {
+        set trimmed [string trim $line]
+        if {$trimmed ne "" && [regexp {^[A-Z0-9][A-Z0-9 ]+$} $trimmed]} {
+            set section $trimmed
+            $text_widget tag add man_header "${line_no}.0" "${line_no}.end"
+            incr line_no
+            continue
+        }
+
+        if {$section eq "NAME"} {
+            set dash_index [string first " - " $line]
+            if {$dash_index != -1} {
+                $text_widget tag add man_bold "${line_no}.0" "${line_no}.${dash_index}"
+            }
+        }
+
+        if {$trimmed ne "" && [lsearch -exact $code_sections $section] != -1} {
+            $text_widget tag add man_code "${line_no}.0" "${line_no}.end"
+        }
+
+        set has_option_section [expr {[lsearch -exact $option_sections $section] != -1}]
+        set has_option_tokens [expr {[regexp -- {(^|[[:space:]])-[A-Za-z0-9]} $line] == 1}]
+        if {$has_option_section || $has_option_tokens} {
+            set matches [regexp -all -inline -indices -- {--?[A-Za-z0-9][A-Za-z0-9_-]*((\[[^]]+\])|([=][^[:space:],;:)]+))?} $line]
+            foreach match $matches {
+                set start [lindex $match 0]
+                set end [lindex $match 1]
+                $text_widget tag add man_option "${line_no}.${start}" "${line_no}.[expr {$end + 1}]"
+            }
+        }
+        incr line_no
+    }
+}
+
+proc ansi_256_color {idx} {
+    set base {
+        "#000000" "#ff5555" "#50fa7b" "#f1fa8c" "#bd93f9" "#ff79c6" "#8be9fd" "#f8f8f2"
+        "#6272a4" "#ff6e6e" "#69ff94" "#ffffa5" "#d6acff" "#ff92df" "#a4ffff" "#ffffff"
+    }
+    if {$idx < 16} {
+        return [lindex $base $idx]
+    }
+    if {$idx >= 16 && $idx <= 231} {
+        set n [expr {$idx - 16}]
+        set r [expr {$n / 36}]
+        set g [expr {($n % 36) / 6}]
+        set b [expr {$n % 6}]
+        set steps {0 95 135 175 215 255}
+        return [format "#%02x%02x%02x" [lindex $steps $r] [lindex $steps $g] [lindex $steps $b]]
+    }
+    if {$idx >= 232 && $idx <= 255} {
+        set v [expr {8 + 10 * ($idx - 232)}]
+        return [format "#%02x%02x%02x" $v $v $v]
+    }
+    return ""
+}
+
+proc ansi_tag_name {fg bg bold} {
+    set fg_id [expr {$fg eq "" ? "none" : [string map {# {}} $fg]}]
+    set bg_id [expr {$bg eq "" ? "none" : [string map {# {}} $bg]}]
+    return "ansi_fg_${fg_id}_bg_${bg_id}_b${bold}"
+}
+
+proc parse_ansi_segments {text} {
+    set segments {}
+    set plain ""
+    set i 0
+    set out_idx 0
+    set len [string length $text]
+    set current_fg ""
+    set current_bg ""
+    set bold 0
+    set run_start 0
+    set run_fg ""
+    set run_bg ""
+    set run_bold 0
+
+    while {$i < $len} {
+        set ch [string index $text $i]
+        if {[string equal $ch "\x1b"] && $i + 1 < $len && [string equal [string index $text [expr {$i + 1}]] {[}]} {
+            set m [string first "m" $text $i]
+            if {$m == -1} {
+                break
+            }
+            set seq [string range $text [expr {$i + 2}] [expr {$m - 1}]]
+            if {$seq eq ""} {
+                set seq "0"
+            }
+            set codes [split $seq ";"]
+            set idx 0
+            while {$idx < [llength $codes]} {
+                set code [lindex $codes $idx]
+                if {$code eq ""} {
+                    incr idx
+                    continue
+                }
+                if {$code eq "0"} {
+                    set current_fg ""
+                    set current_bg ""
+                    set bold 0
+                } elseif {$code eq "39"} {
+                    set current_fg ""
+                } elseif {$code eq "49"} {
+                    set current_bg ""
+                } elseif {$code eq "1"} {
+                    set bold 1
+                } elseif {$code eq "22"} {
+                    set bold 0
+                } elseif {$code eq "38" || $code eq "48"} {
+                    set is_fg [expr {$code eq "38"}]
+                    set mode [lindex $codes [expr {$idx + 1}]]
+                    if {$mode eq "5"} {
+                        set color_idx [lindex $codes [expr {$idx + 2}]]
+                        if {$color_idx ne ""} {
+                            if {$is_fg} {
+                                set current_fg [ansi_256_color $color_idx]
+                            } else {
+                                set current_bg [ansi_256_color $color_idx]
+                            }
+                        }
+                        incr idx 2
+                    } elseif {$mode eq "2"} {
+                        set r [lindex $codes [expr {$idx + 2}]]
+                        set g [lindex $codes [expr {$idx + 3}]]
+                        set b [lindex $codes [expr {$idx + 4}]]
+                        if {$r ne "" && $g ne "" && $b ne ""} {
+                            set color [format "#%02x%02x%02x" $r $g $b]
+                            if {$is_fg} {
+                                set current_fg $color
+                            } else {
+                                set current_bg $color
+                            }
+                        }
+                        incr idx 4
+                    }
+                } elseif {[regexp {^3[0-7]$} $code]} {
+                    set base [expr {$code - 30}]
+                    set current_fg [ansi_256_color $base]
+                } elseif {[regexp {^9[0-7]$} $code]} {
+                    set base [expr {$code - 90 + 8}]
+                    set current_fg [ansi_256_color $base]
+                } elseif {[regexp {^4[0-7]$} $code]} {
+                    set base [expr {$code - 40}]
+                    set current_bg [ansi_256_color $base]
+                } elseif {[regexp {^10[0-7]$} $code]} {
+                    set base [expr {$code - 100 + 8}]
+                    set current_bg [ansi_256_color $base]
+                }
+                incr idx
+            }
+            set i [expr {$m + 1}]
+            continue
+        }
+
+        append plain $ch
+
+        if {$out_idx == $run_start} {
+            set run_fg $current_fg
+            set run_bg $current_bg
+            set run_bold $bold
+        } elseif {$current_fg ne $run_fg || $current_bg ne $run_bg || $bold != $run_bold} {
+            if {$run_fg ne "" || $run_bg ne "" || $run_bold} {
+                lappend segments [list $run_start $out_idx [ansi_tag_name $run_fg $run_bg $run_bold]]
+            }
+            set run_start $out_idx
+            set run_fg $current_fg
+            set run_bg $current_bg
+            set run_bold $bold
+        }
+
+        incr out_idx
+        incr i
+    }
+
+    if {$run_fg ne "" || $run_bg ne "" || $run_bold} {
+        lappend segments [list $run_start $out_idx [ansi_tag_name $run_fg $run_bg $run_bold]]
+    }
+
+    return [list $plain $segments]
+}
+
+proc man_ansi_output {path} {
+    set output ""
+    if {[catch {exec sh -c {BAT_THEME="Monokai Extended" BAT_PAGER=never MANROFFOPT=-c man -P cat -l "$1" | col -bx | bat -l man -p --color=always} sh $path} output] == 0 && [string first "\x1b" $output] != -1} {
+        return $output
+    }
+    return ""
+}
+
+proc apply_ansi_segments {text_widget plain segments} {
+    ensure_manual_fonts
+    global man_bold_font
+    $text_widget delete 1.0 end
+    $text_widget insert end $plain
+    foreach seg $segments {
+        set start [lindex $seg 0]
+        set end [lindex $seg 1]
+        set tag [lindex $seg 2]
+        set tag_key "${text_widget}|${tag}"
+        if {![info exists ::ansi_tag_configured($tag_key)]} {
+            set fg ""
+            set bg ""
+            set bold 0
+            if {[regexp {^ansi_fg_([0-9A-Fa-f]+|none)_bg_([0-9A-Fa-f]+|none)_b([01])$} $tag -> fg_id bg_id bold]} {
+                if {$fg_id ne "none"} {
+                    set fg "#$fg_id"
+                }
+                if {$bg_id ne "none"} {
+                    set bg "#$bg_id"
+                }
+                set opts {}
+                if {$fg ne ""} {
+                    lappend opts -foreground $fg
+                }
+                if {$bg ne ""} {
+                    lappend opts -background $bg
+                }
+                if {$bold} {
+                    lappend opts -font $man_bold_font
+                }
+                if {[llength $opts] > 0} {
+                    $text_widget tag configure $tag {*}$opts
+                }
+            }
+            set ::ansi_tag_configured($tag_key) 1
+        }
+        $text_widget tag add $tag "1.0 + $start chars" "1.0 + $end chars"
+    }
+}
+
 proc show_manual {args} {
     global manuals_list manuals_filtered manuals_text manuals_tldr_text
     set selection [$manuals_list curselection]
@@ -431,24 +731,41 @@ proc show_manual {args} {
         return
     }
     set output ""
-    if {[catch {exec man -P cat -l $path} output] != 0} {
+    set output [man_ansi_output $path]
+    if {$output eq "" && [catch {exec man -P cat -l $path} output] != 0} {
         set output "Failed to open manual: $path\n\n$output"
     }
     $manuals_text configure -state normal
-    $manuals_text delete 1.0 end
-    $manuals_text insert end $output
+    if {[string first "\x1b" $output] != -1} {
+        set parsed [parse_ansi_segments $output]
+        set plain [lindex $parsed 0]
+        set segments [lindex $parsed 1]
+        apply_ansi_segments $manuals_text $plain $segments
+    } else {
+        set decoded [decode_man_overstrike $output]
+        set plain [lindex $decoded 0]
+        $manuals_text delete 1.0 end
+        $manuals_text insert end $plain
+    }
     $manuals_text configure -state disabled
 
     set page [man_page_name_from_path $path]
     set tldr_output ""
     if {$page ne ""} {
-        if {[catch {exec tldr --color=never $page} tldr_output] != 0} {
+        if {[catch {exec tldr --color=always $page} tldr_output] != 0} {
             set tldr_output "No tldr entry for: $page\n\n$tldr_output"
         }
     }
     $manuals_tldr_text configure -state normal
-    $manuals_tldr_text delete 1.0 end
-    $manuals_tldr_text insert end $tldr_output
+    if {[string first "\x1b" $tldr_output] != -1} {
+        set parsed [parse_ansi_segments $tldr_output]
+        set plain [lindex $parsed 0]
+        set segments [lindex $parsed 1]
+        apply_ansi_segments $manuals_tldr_text $plain $segments
+    } else {
+        $manuals_tldr_text delete 1.0 end
+        $manuals_tldr_text insert end $tldr_output
+    }
     $manuals_tldr_text configure -state disabled
 }
 

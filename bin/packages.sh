@@ -5,6 +5,7 @@ set -euo pipefail
 declare -A pkg_suse=(
   [build-tools]="@devel_basis meson clang-tools|Base development toolchain"
   [backlight]="brightnessctl|Backlight control utility"
+  [bat]="bat|Cat replacement with syntax highlighting"
   [ripgrep]="ripgrep|Fast text search tool"
   [git]="git|Git version control"
   [curl]="curl|HTTP client"
