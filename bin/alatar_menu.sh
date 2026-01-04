@@ -5,6 +5,7 @@ set -euo pipefail
 scripts=(
   "Change Wallpaper|Pick a new wallpaper to use on the desktop"
   "Generate Wallpaper|Generates a new wallpaper"
+  "Show help|Display the keybindings and help manuals|show_help"
 )
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -27,7 +28,12 @@ choice="${selection%%$'\t'*}"
 
 echo "$choice"
 
+show_help() {
+    $HOME/.alatar/scripts/help.tcl
+}
+
 case "$choice" in
     "Change Wallpaper") "$PAPE" pick ;;
     "Generate Wallpaper") "$PAPE" gen ;;
+    "Show help") show_help ;;
 esac

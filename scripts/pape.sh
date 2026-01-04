@@ -45,6 +45,7 @@ apply_wallust() {
   fi
 
   if [[ -n "$wallust_bin" ]]; then
+    mkdir -p "$HOME/.config/qt6ct/colors"
     "$wallust_bin" run --config-dir "$HOME/.config/wallust" --overwrite-cache "$WALLPAPER" || true
   fi
 }

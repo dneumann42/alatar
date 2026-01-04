@@ -21,6 +21,7 @@ declare -A pkg_suse=(
   [kitty]="kitty|Kitty GPU terminal emulator"
   [zellij]="zellij|Terminal workspace/tmux alternative"
   [yazi]="yazi|TUI file manager"
+  [tldr]="tlrc|Simplified man pages (tlrc)"
   [window-manager]="sway|Wayland window manager"
   [waybar]="waybar|Wayland status bar"
   [imagemagick]="ImageMagick|Image processing utilities"

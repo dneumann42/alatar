@@ -11,6 +11,19 @@ array set theme {
     button_bg #2a2a2a
     button_text #e6e6e6
     selected_text #ffffff
+    tab_bg #222222
+    tab_active_bg #2d2d2d
+    tab_selected_bg #3a3a3a
+    tab_text #cfcfcf
+    tab_selected_text #ffffff
+    entry_bg #2a2a2a
+    entry_text #e6e6e6
+    border #3a3a3a
+    border_active #5a5a5a
+    scrollbar_trough #1f1f1f
+    scrollbar_thumb #3a3a3a
+    scrollbar_thumb_active #4a4a4a
+    scrollbar_arrow #cfcfcf
 }
 
 set theme_file [file normalize "~/.config/wallust/help.tcl"]
@@ -111,6 +124,70 @@ proc friendly_mod_name {mod} {
     return $mod
 }
 
+proc strip_arrow {text} {
+    if {[string match "* ↑" $text] || [string match "* ↓" $text]} {
+        return [string range $text 0 end-2]
+    }
+    return $text
+}
+
+proc sort_tree {tree columns column} {
+    set data {}
+    foreach item [$tree children {}] {
+        set value [$tree set $item $column]
+        lappend data [list [string tolower $value] $item]
+    }
+    set heading [$tree heading $column -text]
+    set descending [string match "* ↓" $heading]
+    if {$descending} {
+        set sorted [lsort -dictionary -decreasing -index 0 $data]
+    } else {
+        set sorted [lsort -dictionary -index 0 $data]
+    }
+    set index 0
+    foreach pair $sorted {
+        set item [lindex $pair 1]
+        $tree move $item {} $index
+        incr index
+    }
+    foreach col $columns {
+        set text [$tree heading $col -text]
+        $tree heading $col -text [strip_arrow $text]
+    }
+    set base [strip_arrow [$tree heading $column -text]]
+    set suffix [expr {$descending ? " ↑" : " ↓"}]
+    $tree heading $column -text "${base}${suffix}"
+}
+
+proc populate_tree {rows} {
+    global tree
+    foreach item [$tree children {}] {
+        $tree delete $item
+    }
+    foreach row $rows {
+        $tree insert {} end -values $row
+    }
+}
+
+proc apply_filter {args} {
+    global search_var all_rows
+    set query [string tolower [string trim $search_var]]
+    if {$query eq ""} {
+        populate_tree $all_rows
+        return
+    }
+    set filtered {}
+    foreach row $all_rows {
+        set desc [string tolower [lindex $row 0]]
+        set bind [string tolower [lindex $row 1]]
+        set cmd [string tolower [lindex $row 2]]
+        if {[string first $query $desc] != -1 || [string first $query $bind] != -1 || [string first $query $cmd] != -1} {
+            lappend filtered $row
+        }
+    }
+    populate_tree $filtered
+}
+
 set config_path [file normalize "~/.config/sway/config"]
 set mod_binding [read_mod_binding $config_path]
 set mod_friendly [friendly_mod_name $mod_binding]
@@ -179,145 +256,289 @@ while {$line_index < $line_count} {
 }
 
 wm title . " DEV "
-wm geometry . "900x600"
+wm geometry . "1200x720"
 bind . <Escape> cleanup_and_exit
 wm protocol . WM_DELETE_WINDOW cleanup_and_exit
 
 ttk::style theme use clam
-ttk::style configure TFrame -background $theme(base)
+ttk::style configure TFrame -background $theme(base) \
+    -bordercolor $theme(border) -lightcolor $theme(border) -darkcolor $theme(border)
 ttk::style configure TLabel -background $theme(base) -foreground $theme(text)
-ttk::style configure Treeview -background $theme(base) -fieldbackground $theme(base) -foreground $theme(text)
-ttk::style configure Treeview.Heading -background $theme(heading) -foreground $theme(text)
+ttk::style configure Treeview -background $theme(base) -fieldbackground $theme(base) -foreground $theme(text) \
+    -bordercolor $theme(border) -lightcolor $theme(border) -darkcolor $theme(border)
+ttk::style configure Treeview.Heading -background $theme(heading) -foreground $theme(text) \
+    -borderwidth 0
 ttk::style map Treeview -background [list selected $theme(selected_bg) active $theme(active_bg)] -foreground [list selected $theme(selected_text) active $theme(text)]
 ttk::style map Treeview.Heading -background [list active $theme(heading_active)] -foreground [list active $theme(text)]
-ttk::style configure TButton -background $theme(button_bg) -foreground $theme(button_text)
+ttk::style configure TButton -background $theme(button_bg) -foreground $theme(button_text) \
+    -bordercolor $theme(border) -lightcolor $theme(border) -darkcolor $theme(border)
+ttk::style configure TEntry -fieldbackground $theme(entry_bg) -foreground $theme(entry_text) \
+    -bordercolor $theme(border) -lightcolor $theme(border) -darkcolor $theme(border)
+ttk::style map TEntry \
+    -fieldbackground [list readonly $theme(entry_bg) disabled $theme(entry_bg)] \
+    -bordercolor [list focus $theme(border_active)]
+ttk::style configure TNotebook -background $theme(base) -borderwidth 0 \
+    -bordercolor $theme(border) -lightcolor $theme(border) -darkcolor $theme(border)
+ttk::style configure TNotebook.Tab -background $theme(tab_bg) -foreground $theme(tab_text) -padding {12 6} \
+    -bordercolor $theme(border) -lightcolor $theme(border) -darkcolor $theme(border)
+ttk::style map TNotebook.Tab \
+    -background [list selected $theme(tab_selected_bg) active $theme(tab_active_bg)] \
+    -foreground [list selected $theme(tab_selected_text) active $theme(text)]
+ttk::style configure TScrollbar -troughcolor $theme(scrollbar_trough) -background $theme(scrollbar_thumb) \
+    -bordercolor $theme(border) -lightcolor $theme(border) -darkcolor $theme(border) \
+    -arrowcolor $theme(scrollbar_arrow)
+ttk::style map TScrollbar -background [list active $theme(scrollbar_thumb_active)] \
+    -arrowcolor [list active $theme(text)]
 
 grid columnconfigure . 0 -weight 1
 grid rowconfigure . 0 -weight 1
 
-set notebook [ttk::notebook .notebook]
-grid $notebook -row 0 -column 0 -sticky nsew
+proc build_keybindings_tab {notebook mod_friendly mod_binding} {
+    global bindings tree search_var all_rows
+    set keybindings_tab [ttk::frame $notebook.keybindings]
+    $notebook add $keybindings_tab -text "Keybindings"
 
-set keybindings_tab [ttk::frame $notebook.keybindings]
-set manuals_tab [ttk::frame $notebook.manuals]
-$notebook add $keybindings_tab -text "Keybindings"
-$notebook add $manuals_tab -text "Manuals"
+    set frm [ttk::frame $keybindings_tab.frm -padding 10]
+    grid $frm -row 0 -column 0 -sticky nsew
+    grid columnconfigure $keybindings_tab 0 -weight 1
+    grid rowconfigure $keybindings_tab 0 -weight 1
 
-set frm [ttk::frame $keybindings_tab.frm -padding 10]
-grid $frm -row 0 -column 0 -sticky nsew
-grid columnconfigure $keybindings_tab 0 -weight 1
-grid rowconfigure $keybindings_tab 0 -weight 1
+    set mod_label [ttk::label $frm.mod_label -text "\$mod = $mod_friendly ($mod_binding)"]
+    grid $mod_label -row 0 -column 0 -sticky w -pady {0 6}
 
-set mod_label [ttk::label $frm.mod_label -text "\$mod = $mod_friendly ($mod_binding)"]
-grid $mod_label -row 0 -column 0 -sticky w -pady {0 6}
+    set search_var ""
+    set search_row [ttk::frame $frm.search_row]
+    grid $search_row -row 1 -column 0 -columnspan 2 -sticky ew -pady {0 6}
+    set search_label [ttk::label $search_row.search_label -text "Search"]
+    grid $search_label -row 0 -column 0 -sticky w
+    set search_entry [ttk::entry $search_row.search_entry -textvariable search_var -width 40]
+    grid $search_entry -row 0 -column 1 -sticky ew -padx {8 0}
+    grid columnconfigure $search_row 1 -weight 1
 
-set search_var ""
-set search_row [ttk::frame $frm.search_row]
-grid $search_row -row 1 -column 0 -columnspan 2 -sticky ew -pady {0 6}
-set search_label [ttk::label $search_row.search_label -text "Search"]
-grid $search_label -row 0 -column 0 -sticky w
-set search_entry [ttk::entry $search_row.search_entry -textvariable search_var -width 40]
-grid $search_entry -row 0 -column 1 -sticky ew -padx {8 0}
-grid columnconfigure $search_row 1 -weight 1
+    set columns {description binding command}
+    set tree [ttk::treeview $frm.tree -columns $columns -show headings]
 
-set columns {description binding command}
-set tree [ttk::treeview $frm.tree -columns $columns -show headings]
+    $tree heading description -text "Description" -command [list sort_tree $tree $columns description]
+    $tree heading binding -text "Binding" -command [list sort_tree $tree $columns binding]
+    $tree heading command -text "Executes" -command [list sort_tree $tree $columns command]
+    $tree column description -width 280 -anchor w
+    $tree column binding -width 160 -anchor w
+    $tree column command -width 520 -anchor w
 
-proc strip_arrow {text} {
-    if {[string match "* ↑" $text] || [string match "* ↓" $text]} {
-        return [string range $text 0 end-2]
-    }
-    return $text
+    set scroll_y [ttk::scrollbar $frm.scroll_y -orient vertical -command [list $tree yview]]
+    set scroll_x [ttk::scrollbar $frm.scroll_x -orient horizontal -command [list $tree xview]]
+    $tree configure -yscrollcommand [list $scroll_y set] -xscrollcommand [list $scroll_x set]
+
+    grid $tree -row 2 -column 0 -sticky nsew
+    grid $scroll_y -row 2 -column 1 -sticky ns
+    grid $scroll_x -row 3 -column 0 -sticky ew
+
+    grid columnconfigure $frm 0 -weight 1
+    grid rowconfigure $frm 2 -weight 1
+
+    set all_rows $bindings
+    trace add variable search_var write apply_filter
+    populate_tree $all_rows
+
+    set btn_row [ttk::frame $frm.btn_row]
+    grid $btn_row -row 4 -column 0 -columnspan 2 -pady {8 0} -sticky e
+    ttk::button $btn_row.quit -text "Quit" -command cleanup_and_exit
+    grid $btn_row.quit -row 0 -column 0
+
+    return $keybindings_tab
 }
 
-proc sort_tree {tree columns column} {
-    set data {}
-    foreach item [$tree children {}] {
-        set value [$tree set $item $column]
-        lappend data [list [string tolower $value] $item]
-    }
-    set heading [$tree heading $column -text]
-    set descending [string match "* ↓" $heading]
-    if {$descending} {
-        set sorted [lsort -dictionary -decreasing -index 0 $data]
+proc list_man_files {} {
+    set manpaths {}
+    if {[catch {exec manpath} out] == 0} {
+        set manpaths [split [string trim $out] ":"]
+    } elseif {[info exists ::env(MANPATH)]} {
+        set manpaths [split $::env(MANPATH) ":"]
     } else {
-        set sorted [lsort -dictionary -index 0 $data]
+        set manpaths {~/.local/share/man /usr/local/share/man /usr/share/man}
     }
-    set index 0
-    foreach pair $sorted {
-        set item [lindex $pair 1]
-        $tree move $item {} $index
-        incr index
+
+    set results {}
+    foreach base $manpaths {
+        if {$base eq ""} {
+            continue
+        }
+        set base [file normalize $base]
+        if {![file isdirectory $base]} {
+            continue
+        }
+        foreach subdir [glob -nocomplain -types d -directory $base man*] {
+            foreach path [glob -nocomplain -types f -directory $subdir {*.[0-9]*}] {
+                lappend results $path
+            }
+        }
     }
-    foreach col $columns {
-        set text [$tree heading $col -text]
-        $tree heading $col -text [strip_arrow $text]
-    }
-    set base [strip_arrow [$tree heading $column -text]]
-    set suffix [expr {$descending ? " ↑" : " ↓"}]
-    $tree heading $column -text "${base}${suffix}"
+    return [lsort -unique $results]
 }
 
-$tree heading description -text "Description" -command [list sort_tree $tree $columns description]
-$tree heading binding -text "Binding" -command [list sort_tree $tree $columns binding]
-$tree heading command -text "Executes" -command [list sort_tree $tree $columns command]
-$tree column description -width 280 -anchor w
-$tree column binding -width 160 -anchor w
-$tree column command -width 520 -anchor w
-
-set scroll_y [ttk::scrollbar $frm.scroll_y -orient vertical -command [list $tree yview]]
-set scroll_x [ttk::scrollbar $frm.scroll_x -orient horizontal -command [list $tree xview]]
-$tree configure -yscrollcommand [list $scroll_y set] -xscrollcommand [list $scroll_x set]
-
-grid $tree -row 2 -column 0 -sticky nsew
-grid $scroll_y -row 2 -column 1 -sticky ns
-grid $scroll_x -row 3 -column 0 -sticky ew
-
-grid columnconfigure $frm 0 -weight 1
-grid rowconfigure $frm 2 -weight 1
-
-set all_rows $bindings
-
-proc populate_tree {rows} {
-    global tree
-    foreach item [$tree children {}] {
-        $tree delete $item
+proc format_man_display_name {path} {
+    set name [file tail $path]
+    if {[string match "*.gz" $name]} {
+        return [string range $name 0 end-3]
     }
-    foreach row $rows {
-        $tree insert {} end -values $row
+    return $name
+}
+
+proc populate_manuals_list {items} {
+    global manuals_list manuals_filtered
+    set manuals_filtered $items
+    $manuals_list delete 0 end
+    foreach item $items {
+        $manuals_list insert end [lindex $item 0]
     }
 }
 
-proc apply_filter {args} {
-    global search_var all_rows
-    set query [string tolower [string trim $search_var]]
+proc apply_manuals_filter {args} {
+    global manuals_search_var manuals_items
+    set query [string tolower [string trim $manuals_search_var]]
     if {$query eq ""} {
-        populate_tree $all_rows
+        populate_manuals_list $manuals_items
         return
     }
     set filtered {}
-    foreach row $all_rows {
-        set desc [string tolower [lindex $row 0]]
-        set bind [string tolower [lindex $row 1]]
-        set cmd [string tolower [lindex $row 2]]
-        if {[string first $query $desc] != -1 || [string first $query $bind] != -1 || [string first $query $cmd] != -1} {
-            lappend filtered $row
+    foreach item $manuals_items {
+        set name [string tolower [lindex $item 0]]
+        if {[string first $query $name] != -1} {
+            lappend filtered $item
         }
     }
-    populate_tree $filtered
+    populate_manuals_list $filtered
 }
 
-trace add variable search_var write apply_filter
-populate_tree $all_rows
+proc man_page_name_from_path {path} {
+    set name [file tail $path]
+    if {[string match "*.gz" $name]} {
+        set name [string range $name 0 end-3]
+    }
+    set parts [split $name "."]
+    return [lindex $parts 0]
+}
 
-set btn_row [ttk::frame $frm.btn_row]
-grid $btn_row -row 4 -column 0 -columnspan 2 -pady {8 0} -sticky e
-ttk::button $btn_row.quit -text "Quit" -command cleanup_and_exit
-grid $btn_row.quit -row 0 -column 0
+proc show_manual {args} {
+    global manuals_list manuals_filtered manuals_text manuals_tldr_text
+    set selection [$manuals_list curselection]
+    if {[llength $selection] == 0} {
+        return
+    }
+    set index [lindex $selection 0]
+    set path [lindex [lindex $manuals_filtered $index] 1]
+    if {$path eq ""} {
+        return
+    }
+    set output ""
+    if {[catch {exec man -P cat -l $path} output] != 0} {
+        set output "Failed to open manual: $path\n\n$output"
+    }
+    $manuals_text configure -state normal
+    $manuals_text delete 1.0 end
+    $manuals_text insert end $output
+    $manuals_text configure -state disabled
 
-set manuals_frame [ttk::frame $manuals_tab.frame -padding 10]
-grid $manuals_frame -row 0 -column 0 -sticky nsew
-grid columnconfigure $manuals_tab 0 -weight 1
-grid rowconfigure $manuals_tab 0 -weight 1
-ttk::label $manuals_frame.label -text "Manuals"
-grid $manuals_frame.label -row 0 -column 0 -sticky w
+    set page [man_page_name_from_path $path]
+    set tldr_output ""
+    if {$page ne ""} {
+        if {[catch {exec tldr --color=never $page} tldr_output] != 0} {
+            set tldr_output "No tldr entry for: $page\n\n$tldr_output"
+        }
+    }
+    $manuals_tldr_text configure -state normal
+    $manuals_tldr_text delete 1.0 end
+    $manuals_tldr_text insert end $tldr_output
+    $manuals_tldr_text configure -state disabled
+}
+
+proc build_manuals_tab {notebook} {
+    global manuals_list manuals_text manuals_tldr_text manuals_items manuals_filtered manuals_search_var theme
+    set manuals_tab [ttk::frame $notebook.manuals]
+    $notebook add $manuals_tab -text "Manuals"
+
+    set manuals_frame [ttk::frame $manuals_tab.frame -padding 10]
+    grid $manuals_frame -row 0 -column 0 -sticky nsew
+    
+    grid columnconfigure $manuals_tab 0 -weight 1
+    grid rowconfigure $manuals_tab 0 -weight 1
+    
+    set manuals_label [ttk::label $manuals_frame.label -text "Manuals List"]
+    grid $manuals_label -row 0 -column 0 -sticky w
+
+    set manuals_search_var ""
+    set manuals_search_row [ttk::frame $manuals_frame.search_row]
+    grid $manuals_search_row -row 1 -column 0 -columnspan 2 -sticky ew -pady {6 0}
+    set manuals_search_label [ttk::label $manuals_search_row.search_label -text "Search"]
+    grid $manuals_search_label -row 0 -column 0 -sticky w
+    set manuals_search_entry [ttk::entry $manuals_search_row.search_entry -textvariable manuals_search_var -width 28]
+    grid $manuals_search_entry -row 0 -column 1 -sticky ew -padx {8 0}
+    grid columnconfigure $manuals_search_row 1 -weight 1
+
+    set manuals_list [listbox $manuals_frame.list -height 20 -exportselection 0 \
+        -background $theme(base) -foreground $theme(text) \
+        -selectbackground $theme(selected_bg) -selectforeground $theme(selected_text) \
+        -highlightbackground $theme(border) -highlightcolor $theme(border_active)]
+    set manuals_scroll [ttk::scrollbar $manuals_frame.scroll -orient vertical -command [list $manuals_list yview]]
+    $manuals_list configure -yscrollcommand [list $manuals_scroll set]
+    grid $manuals_list -row 2 -column 0 -sticky nsew -pady {6 0}
+    grid $manuals_scroll -row 2 -column 1 -sticky ns -pady {6 0}
+    grid columnconfigure $manuals_frame 0 -weight 1
+    grid rowconfigure $manuals_frame 2 -weight 1
+
+    set manuals_items {}
+    foreach path [list_man_files] {
+        lappend manuals_items [list [format_man_display_name $path] $path]
+    }
+    populate_manuals_list $manuals_items
+    bind $manuals_list <<ListboxSelect>> show_manual
+    trace add variable manuals_search_var write apply_manuals_filter
+
+    ttk::label $manuals_frame.label2 -text "Manuals contents"
+    grid $manuals_frame.label2 -row 0 -column 2 -sticky w
+
+    set manuals_pane [ttk::panedwindow $manuals_frame.pane -orient vertical]
+    grid $manuals_pane -row 2 -column 2 -columnspan 2 -sticky nsew -padx {12 0} -pady {6 0}
+
+    set manuals_man_pane [ttk::frame $manuals_frame.man_pane]
+    set manuals_tldr_pane [ttk::frame $manuals_frame.tldr_pane]
+    $manuals_pane add $manuals_man_pane -weight 3
+    $manuals_pane add $manuals_tldr_pane -weight 2
+
+    set manuals_text [text $manuals_man_pane.text -wrap word -height 12 -font TkFixedFont \
+        -background $theme(base) -foreground $theme(text) \
+        -selectbackground $theme(selected_bg) -selectforeground $theme(selected_text) \
+        -highlightbackground $theme(border) -highlightcolor $theme(border_active) \
+        -insertbackground $theme(text)]
+    set manuals_text_scroll [ttk::scrollbar $manuals_man_pane.text_scroll -orient vertical -command [list $manuals_text yview]]
+    $manuals_text configure -yscrollcommand [list $manuals_text_scroll set] -state disabled
+    grid $manuals_text -row 0 -column 0 -sticky nsew
+    grid $manuals_text_scroll -row 0 -column 1 -sticky ns
+    grid columnconfigure $manuals_man_pane 0 -weight 1
+    grid rowconfigure $manuals_man_pane 0 -weight 1
+
+    ttk::label $manuals_tldr_pane.label -text "TLDR"
+    grid $manuals_tldr_pane.label -row 0 -column 0 -sticky w -pady {0 4}
+    set manuals_tldr_text [text $manuals_tldr_pane.text -wrap word -height 8 -font TkFixedFont \
+        -background $theme(base) -foreground $theme(text) \
+        -selectbackground $theme(selected_bg) -selectforeground $theme(selected_text) \
+        -highlightbackground $theme(border) -highlightcolor $theme(border_active) \
+        -insertbackground $theme(text)]
+    set manuals_tldr_text_scroll [ttk::scrollbar $manuals_tldr_pane.text_scroll -orient vertical -command [list $manuals_tldr_text yview]]
+    $manuals_tldr_text configure -yscrollcommand [list $manuals_tldr_text_scroll set] -state disabled
+    grid $manuals_tldr_text -row 1 -column 0 -sticky nsew
+    grid $manuals_tldr_text_scroll -row 1 -column 1 -sticky ns
+    grid columnconfigure $manuals_tldr_pane 0 -weight 1
+    grid rowconfigure $manuals_tldr_pane 1 -weight 1
+
+    grid columnconfigure $manuals_frame 1 -weight 0
+    grid columnconfigure $manuals_frame 2 -weight 1
+    grid columnconfigure $manuals_frame 3 -weight 0
+
+    return $manuals_tab
+}
+
+set notebook [ttk::notebook .notebook]
+grid $notebook -row 0 -column 0 -sticky nsew
+build_keybindings_tab $notebook $mod_friendly $mod_binding
+build_manuals_tab $notebook
