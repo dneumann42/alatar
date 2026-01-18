@@ -1,5 +1,5 @@
 import std/[tables, strutils, math, strformat, options, sequtils]
-import ast, reader, pretty
+import ast, reader
 
 type
   EvalCode* = enum
@@ -25,19 +25,30 @@ proc popLevel*(evaluator: Evaluator): Table[string, string] =
 proc findVar*(evaluator: Evaluator, ident: string): Option[string] =
   if evaluator.environment.scopes.len == 0:
     return
-  for scope in evaluator.environment.scopes:
-    if scope.hasKey(ident):
-      return some(scope[ident])
+  # Search from innermost to outermost scope
+  for i in countdown(evaluator.environment.scopes.high, 0):
+    if evaluator.environment.scopes[i].hasKey(ident):
+      return some(evaluator.environment.scopes[i][ident])
 
 proc unsetVar*(evaluator: Evaluator, ident: string) =
   if evaluator.environment.scopes.len == 0:
     return
-  for scope in evaluator.environment.scopes.mitems:
-    if scope.hasKey(ident):
-      scope.del(ident)
+  # Search from innermost to outermost scope
+  for i in countdown(evaluator.environment.scopes.high, 0):
+    if evaluator.environment.scopes[i].hasKey(ident):
+      evaluator.environment.scopes[i].del(ident)
       return
  
 proc setVar*(evaluator: Evaluator, ident: string, value: string) =
+  # Update existing variable in any scope, or create new in current scope
+  for i in countdown(evaluator.environment.scopes.high, 0):
+    if evaluator.environment.scopes[i].hasKey(ident):
+      evaluator.environment.scopes[i][ident] = value
+      return
+  evaluator.environment.scopes[^1][ident] = value
+
+proc setLocalVar*(evaluator: Evaluator, ident: string, value: string) =
+  # Always set in current (innermost) scope - used for function parameters
   evaluator.environment.scopes[^1][ident] = value
 
 type
@@ -406,11 +417,16 @@ proc cmdIf(evaluator: Evaluator, args: seq[string]): EvalResult {.gcsafe.} =
 proc cmdFun(evaluator: Evaluator, args: seq[string]): EvalResult {.gcsafe.} =
   let name = args[0]
   evaluator.commands[name] = proc(e: Evaluator, subArgs: seq[string]): EvalResult {.gcsafe.} =
+    e.pushLevel()  # Create function scope
     let a = parse(args[1])
-    for i in 0 ..< a.commands[0].words.len:
-      let ident = a.commands[0].words[i]
-      evaluator.setVar(ident.parts[0].text, subArgs[i])
-    return e.evaluate(parse args[^1])
+    # Set function parameters (if any) as local variables
+    if a.commands.len > 0 and a.commands[0].words.len > 0:
+      for i in 0 ..< a.commands[0].words.len:
+        let ident = a.commands[0].words[i]
+        e.setLocalVar(ident.parts[0].text, subArgs[i])
+    result = e.evaluate(parse args[^1])
+    discard e.popLevel()  # Remove function scope
+  return (Ok, "")
 
 proc cmdEval(evaluator: Evaluator, args: seq[string]): EvalResult {.gcsafe.} =
   return evaluator.evaluate(parse args[^1])
@@ -494,9 +510,7 @@ proc evaluate*(evaluator: Evaluator, cmd: Command): EvalResult {.gcsafe.} =
     return (Error, &"Invalid command: {cmdName}")
 
   let cmdProc = evaluator.commands[cmdName]
-  evaluator.pushLevel()
   result = cmdProc(evaluator, cmdArgs)
-  discard evaluator.popLevel()
 
 proc evaluate*(evaluator: Evaluator, script: Script): EvalResult {.gcsafe.} =
   var lastResult: EvalResult = (Ok, "")

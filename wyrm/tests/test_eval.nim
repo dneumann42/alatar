@@ -1,4 +1,4 @@
-import std/[unittest, strutils, tables]
+import std/[unittest, strutils, tables, options]
 import wyrm
 
 proc newEvaluator(): Evaluator =
@@ -21,7 +21,7 @@ suite "Basic Evaluation":
   test "unknown command":
     let (code, value) = eval("unknown")
     check code == Error
-    check "invalid command name" in value
+    check "Invalid command" in value
 
   test "comment only":
     let (code, value) = eval("# just a comment")
@@ -350,8 +350,8 @@ suite "Custom Commands":
   test "custom command can access variables":
     var interp = newEvaluator()
     interp.commands["getvar"] = proc(i: Evaluator, args: seq[string]): EvalResult =
-      if i.variables.hasKey("secret"):
-        return (Ok, i.variables["secret"])
+      if i.findVar("secret").isSome:
+        return (Ok, i.findVar("secret").get())
       return (Error, "no secret")
 
     discard interp.evalWith("set secret 42")
@@ -362,8 +362,91 @@ suite "Custom Commands":
   test "custom command can set variables":
     var interp = newEvaluator()
     interp.commands["setmagic"] = proc(i: Evaluator, args: seq[string]): EvalResult =
-      i.variables["magic"] = "abracadabra"
+      i.setVar("magic", "abracadabra")
       return (Ok, "done")
 
     discard interp.evalWith("setmagic")
     check interp.evalWith("set magic").value == "abracadabra"
+
+suite "Function Scoping":
+  test "function parameters shadow outer variables":
+    var interp = newEvaluator()
+    discard interp.evalWith("set n 1")
+    discard interp.evalWith("fun test {n} { set result $n }")
+    discard interp.evalWith("test 42")
+    # Parameter n=42 should have been used inside function
+    # but outer n should still be 1
+    check interp.evalWith("set n").value == "1"
+
+  test "function can modify outer variable":
+    var interp = newEvaluator()
+    discard interp.evalWith("set x outer")
+    discard interp.evalWith("fun modify {} { set x inner }")
+    discard interp.evalWith("modify")
+    # set updates existing variable in outer scope
+    check interp.evalWith("set x").value == "inner"
+
+  test "function can read outer variable":
+    var interp = newEvaluator()
+    discard interp.evalWith("set outer_val 123")
+    discard interp.evalWith("fun reader {} { set outer_val }")
+    let (code, value) = interp.evalWith("reader")
+    check code == Ok
+    check value == "123"
+
+  test "new variable in function is local":
+    var interp = newEvaluator()
+    discard interp.evalWith("fun creator {} { set local_var 42 }")
+    discard interp.evalWith("creator")
+    # local_var was created in function scope and is gone after function returns
+    let (code, _) = interp.evalWith("set local_var")
+    check code == Error
+
+  test "nested function scopes":
+    var interp = newEvaluator()
+    discard interp.evalWith("set x 1")
+    discard interp.evalWith("fun outer {} { set x 2; inner }")
+    discard interp.evalWith("fun inner {} { set x 3 }")
+    discard interp.evalWith("outer")
+    # Both inner and outer modify the same global x
+    check interp.evalWith("set x").value == "3"
+
+  test "function return value":
+    var interp = newEvaluator()
+    discard interp.evalWith("fun add {a b} { @ {$a + $b} }")
+    let (code, value) = interp.evalWith("add 3 4")
+    check code == Ok
+    check value == "7"
+
+  test "while loop preserves outer scope":
+    var interp = newEvaluator()
+    discard interp.evalWith("set i 0; set sum 0")
+    discard interp.evalWith("while {@ {$i < 3}} { set sum [@ {$sum + $i}]; set i [@ {$i + 1}] }")
+    check interp.evalWith("set sum").value == "3"
+    check interp.evalWith("set i").value == "3"
+
+  test "dotimes function from prelude":
+    var interp = newEvaluator()
+    discard interp.evalWith("set total 0")
+    discard interp.evalWith("dotimes 5 { set total [@ {$total + 1}] }")
+    check interp.evalWith("set total").value == "5"
+
+  test "parameter shadows outer but inner set reads parameter":
+    var interp = newEvaluator()
+    discard interp.evalWith("set val global")
+    discard interp.evalWith("fun shadow {val} { set val }")
+    let (code, value) = interp.evalWith("shadow local")
+    check code == Ok
+    check value == "local"
+    # Global unchanged because parameter shadowed it
+    check interp.evalWith("set val").value == "global"
+
+  test "parameter modification stays local":
+    var interp = newEvaluator()
+    discard interp.evalWith("set x 100")
+    discard interp.evalWith("fun modify_param {x} { set x [@ {$x + 1}]; set x }")
+    let (code, value) = interp.evalWith("modify_param 5")
+    check code == Ok
+    check value == "6"
+    # Global x unchanged because parameter x shadows it
+    check interp.evalWith("set x").value == "100"
