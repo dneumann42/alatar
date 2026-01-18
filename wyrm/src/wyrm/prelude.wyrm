@@ -1,0 +1,8 @@
+fun dotimes {count block} {
+  set idx 0
+  while {@ {$idx < $count}} {
+    eval $block
+    set idx [@ {$idx + 1}]
+  }
+}
+

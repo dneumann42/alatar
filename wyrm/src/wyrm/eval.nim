@@ -1,4 +1,4 @@
-import std/[tables, strutils, math, strformat]
+import std/[tables, strutils, math, strformat, options, sequtils]
 import ast, reader, pretty
 
 type
@@ -7,11 +7,38 @@ type
 
   EvalResult* = tuple[code: EvalCode, value: string]
 
+  Environment* = object
+    scopes: seq[Table[string, string]]
+
   Evaluator* = ref object
-    variables*: Table[string, string]
+    environment*: Environment
     commands*: Table[string, CommandProc]
 
   CommandProc* = proc(evaluator: Evaluator, args: seq[string]): EvalResult {.gcsafe.}
+
+proc pushLevel*(evaluator: Evaluator) =
+  evaluator.environment.scopes.add(initTable[string, string]())
+
+proc popLevel*(evaluator: Evaluator): Table[string, string] =
+  evaluator.environment.scopes.pop()
+
+proc findVar*(evaluator: Evaluator, ident: string): Option[string] =
+  if evaluator.environment.scopes.len == 0:
+    return
+  for scope in evaluator.environment.scopes:
+    if scope.hasKey(ident):
+      return some(scope[ident])
+
+proc unsetVar*(evaluator: Evaluator, ident: string) =
+  if evaluator.environment.scopes.len == 0:
+    return
+  for scope in evaluator.environment.scopes.mitems:
+    if scope.hasKey(ident):
+      scope.del(ident)
+      return
+ 
+proc setVar*(evaluator: Evaluator, ident: string, value: string) =
+  evaluator.environment.scopes[^1][ident] = value
 
 type
   TokenKind = enum
@@ -154,9 +181,9 @@ proc parsePrefix(p: var ExprParser): (float, string) {.gcsafe.} =
       p.advance()
       if p.evaluator.isNil:
         return (0, "no evaluatorreter for variable lookup")
-      if not p.evaluator.variables.hasKey(tok.varName):
+      if p.evaluator.findVar(tok.varName).isNone:
         return (0, "can't read \"" & tok.varName & "\": no such variable")
-      let varValue = p.evaluator.variables[tok.varName]
+      let varValue = p.evaluator.findVar(tok.varName).get()
       try:
         return (parseFloat(varValue), "")
       except ValueError:
@@ -272,7 +299,10 @@ proc cmdExpr(evaluator: Evaluator, args: seq[string]): EvalResult {.gcsafe.} =
     return (Ok, $value)
 
 proc init*(T: typedesc[Evaluator]): T =
-  result = T()
+  result = T(
+    environment: Environment(scopes: @[])
+  )
+  result.pushLevel()
 
 proc evaluate*(evaluator: Evaluator, script: Script): EvalResult {.gcsafe.}
 
@@ -299,11 +329,11 @@ proc cmdSet(evaluator: Evaluator, args: seq[string]): EvalResult {.gcsafe.} =
 
   let varName = args[0]
   if args.len == 2:
-    evaluator.variables[varName] = args[1]
+    evaluator.setVar(varName, args[1])
     return (Ok, args[1])
   else:
-    if evaluator.variables.hasKey(varName):
-      return (Ok, evaluator.variables[varName])
+    if evaluator.findVar(varName).isSome:
+      return (Ok, evaluator.findVar(varName).get())
     else:
       return (Error, "can't read \"" & varName & "\": no such variable")
 
@@ -311,7 +341,7 @@ proc cmdUnset(evaluator: Evaluator, args: seq[string]): EvalResult {.gcsafe.} =
   if args.len < 1:
     return (Error, "wrong # args: should be \"unset varName ?varName ...?\"")
   for varName in args:
-    evaluator.variables.del(varName)
+    evaluator.unsetVar(varName)
   return (Ok, "")
 
 proc cmdInfo(evaluator: Evaluator, args: seq[string]): EvalResult {.gcsafe.} =
@@ -322,15 +352,15 @@ proc cmdInfo(evaluator: Evaluator, args: seq[string]): EvalResult {.gcsafe.} =
     of "exists":
       if args.len != 2:
         return (Error, "wrong # args: should be \"info exists varName\"")
-      if evaluator.variables.hasKey(args[1]):
+      if evaluator.findVar(args[1]).isSome:
         return (Ok, "1")
       else:
         return (Ok, "0")
     of "vars":
       var names: seq[string] = @[]
-      for k in evaluator.variables.keys:
-        names.add(k)
-      return (Ok, names.join(" "))
+      for scope in evaluator.environment.scopes:
+        names.add(scope.pairs.toSeq().join("|"))
+      return (Ok, names.join("\n"))
     of "commands":
       var names: seq[string] = @[]
       for k in evaluator.commands.keys:
@@ -379,7 +409,7 @@ proc cmdFun(evaluator: Evaluator, args: seq[string]): EvalResult {.gcsafe.} =
     let a = parse(args[1])
     for i in 0 ..< a.commands[0].words.len:
       let ident = a.commands[0].words[i]
-      evaluator.variables[ident.parts[0].text] = subArgs[i]
+      evaluator.setVar(ident.parts[0].text, subArgs[i])
     return e.evaluate(parse args[^1])
 
 proc cmdEval(evaluator: Evaluator, args: seq[string]): EvalResult {.gcsafe.} =
@@ -399,6 +429,8 @@ proc cmdWhile(evaluator: Evaluator, args: seq[string]): EvalResult {.gcsafe.} =
 proc setCommand(evaluator: Evaluator, name: string, fn: proc(evaluator: Evaluator, args: seq[string]): EvalResult {.gcsafe.}) =
   evaluator.commands[name] = fn
 
+const PreludeScript = staticRead"prelude.wyrm"
+
 proc loadPrelude*(evaluator: Evaluator) =
   template set(id, cmd) = evaluator.setCommand(id, cmd)
   set "set", cmdSet
@@ -414,6 +446,8 @@ proc loadPrelude*(evaluator: Evaluator) =
   set "fun", cmdFun
   set "eval", cmdEval
   set "while", cmdWhile
+  echo "[Loading prelude]"
+  echo evaluator.evaluate(parse PreludeScript)
   
 proc evaluateWord*(evaluator: Evaluator, word: Word): string =
   if word.braced:
@@ -425,8 +459,8 @@ proc evaluateWord*(evaluator: Evaluator, word: Word): string =
       of Literal:
         res.add(part.text)
       of VariableSubst:
-        if evaluator.variables.hasKey(part.varName):
-          res.add(evaluator.variables[part.varName])
+        if evaluator.findVar(part.varName).isSome:
+          res.add(evaluator.findVar(part.varName).get())
         else:
           raise newException(ValueError, "can't read \"" & part.varName & "\": no such variable")
       of CommandSubst:
@@ -460,7 +494,9 @@ proc evaluate*(evaluator: Evaluator, cmd: Command): EvalResult {.gcsafe.} =
     return (Error, &"Invalid command: {cmdName}")
 
   let cmdProc = evaluator.commands[cmdName]
-  return cmdProc(evaluator, cmdArgs)
+  evaluator.pushLevel()
+  result = cmdProc(evaluator, cmdArgs)
+  discard evaluator.popLevel()
 
 proc evaluate*(evaluator: Evaluator, script: Script): EvalResult {.gcsafe.} =
   var lastResult: EvalResult = (Ok, "")

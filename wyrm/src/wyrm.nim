@@ -6,10 +6,12 @@ when isMainModule:
   evaluator.loadPrelude()
   echo evaluator.evaluate(parse("""
 
-  set i 0
-  while {@ {$i < 10}} {
-    puts $i
-    set i [@ {$i + 1}]
+  set n 1
+  puts "N: $n"
+  fun factorial {n} {
+    puts "N: $n"
   }
+  factorial [@ {$n + 1}]
+  puts "N2: $n"
 
   """)).value
