@@ -2,10 +2,14 @@ import wyrm/[ast, reader, eval]
 export ast, reader, eval
 
 when isMainModule:
-  import std/tables
-  import pretty
+  var evaluator = Evaluator.init()
+  evaluator.loadPrelude()
+  echo evaluator.evaluate(parse("""
 
-  var interp = Interp.init()
-  interp.loadPrelude()
-  print interp.evaluate(parse("set x 123"))
-  print interp
+  set i 0
+  while {@ {$i < 10}} {
+    puts $i
+    set i [@ {$i + 1}]
+  }
+
+  """)).value

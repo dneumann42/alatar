@@ -1,6 +1,8 @@
 import std/strutils
 import ast
 
+{.push gcsafe.}
+
 proc parse*(input: string): Script
 
 proc skipInlineWhitespace(input: string, pos: var int) =

@@ -1,15 +1,15 @@
 import std/[unittest, strutils, tables]
 import wyrm
 
-proc newInterp(): Interp =
-  result = Interp.init()
+proc newEvaluator(): Evaluator =
+  result = Evaluator.init()
   result.loadPrelude()
 
 proc eval(code: string): EvalResult =
-  var interp = newInterp()
+  var interp = newEvaluator()
   interp.evaluate(parse(code))
 
-proc evalWith(interp: Interp, code: string): EvalResult =
+proc evalWith(interp: Evaluator, code: string): EvalResult =
   interp.evaluate(parse(code))
 
 suite "Basic Evaluation":
@@ -34,14 +34,14 @@ suite "set Command":
     check value == "hello"
 
   test "set and get variable":
-    var interp = newInterp()
+    var interp = newEvaluator()
     discard interp.evalWith("set x 42")
     let (code, value) = interp.evalWith("set x")
     check code == Ok
     check value == "42"
 
   test "set overwrites variable":
-    var interp = newInterp()
+    var interp = newEvaluator()
     discard interp.evalWith("set x first")
     discard interp.evalWith("set x second")
     let (code, value) = interp.evalWith("set x")
@@ -65,7 +65,7 @@ suite "set Command":
 
 suite "unset Command":
   test "unset variable":
-    var interp = newInterp()
+    var interp = newEvaluator()
     discard interp.evalWith("set x 123")
     let (code, _) = interp.evalWith("unset x")
     check code == Ok
@@ -74,7 +74,7 @@ suite "unset Command":
     check "no such variable" in value2
 
   test "unset multiple variables":
-    var interp = newInterp()
+    var interp = newEvaluator()
     discard interp.evalWith("set a 1")
     discard interp.evalWith("set b 2")
     discard interp.evalWith("set c 3")
@@ -94,7 +94,7 @@ suite "unset Command":
 
 suite "info Command":
   test "info exists - true":
-    var interp = newInterp()
+    var interp = newEvaluator()
     discard interp.evalWith("set x 123")
     let (code, value) = interp.evalWith("info exists x")
     check code == Ok
@@ -106,7 +106,7 @@ suite "info Command":
     check value == "0"
 
   test "info vars":
-    var interp = newInterp()
+    var interp = newEvaluator()
     discard interp.evalWith("set a 1")
     discard interp.evalWith("set b 2")
     let (code, value) = interp.evalWith("info vars")
@@ -115,7 +115,7 @@ suite "info Command":
     check "b" in value
 
   test "info commands":
-    var interp = newInterp()
+    var interp = newEvaluator()
     let (code, value) = interp.evalWith("info commands")
     check code == Ok
     check "set" in value
@@ -142,7 +142,7 @@ suite "Control Flow - return":
     check value == ""
 
   test "return stops script":
-    var interp = newInterp()
+    var interp = newEvaluator()
     let (code, value) = interp.evalWith("set x before; return early; set x after")
     check code == Return
     check value == "early"
@@ -174,28 +174,28 @@ suite "Control Flow - continue":
 
 suite "Variable Substitution":
   test "simple variable substitution":
-    var interp = newInterp()
+    var interp = newEvaluator()
     discard interp.evalWith("set name World")
     let (code, value) = interp.evalWith("set greeting Hello$name")
     check code == Ok
     check value == "HelloWorld"
 
   test "variable in quoted string":
-    var interp = newInterp()
+    var interp = newEvaluator()
     discard interp.evalWith("set name World")
     let (code, value) = interp.evalWith("set greeting \"Hello $name\"")
     check code == Ok
     check value == "Hello World"
 
   test "braced variable":
-    var interp = newInterp()
+    var interp = newEvaluator()
     discard interp.evalWith("set name World")
     let (code, value) = interp.evalWith("set greeting \"Hello ${name}!\"")
     check code == Ok
     check value == "Hello World!"
 
   test "no substitution in braces":
-    var interp = newInterp()
+    var interp = newEvaluator()
     discard interp.evalWith("set name World")
     let (code, value) = interp.evalWith("set literal {$name}")
     check code == Ok
@@ -207,7 +207,7 @@ suite "Variable Substitution":
     check "no such variable" in value
 
   test "multiple variables":
-    var interp = newInterp()
+    var interp = newEvaluator()
     discard interp.evalWith("set a Hello")
     discard interp.evalWith("set b World")
     let (code, value) = interp.evalWith("set c \"$a $b\"")
@@ -216,20 +216,20 @@ suite "Variable Substitution":
 
 suite "Command Substitution":
   test "simple command substitution":
-    var interp = newInterp()
+    var interp = newEvaluator()
     discard interp.evalWith("set x [set y 42]")
     check interp.evalWith("set x").value == "42"
     check interp.evalWith("set y").value == "42"
 
   test "nested command substitution":
-    var interp = newInterp()
+    var interp = newEvaluator()
     discard interp.evalWith("set inner 123")
     let (code, value) = interp.evalWith("set outer [set result [set inner]]")
     check code == Ok
     check value == "123"
 
   test "command substitution in quotes":
-    var interp = newInterp()
+    var interp = newEvaluator()
     discard interp.evalWith("set x 42")
     let (code, value) = interp.evalWith("set msg \"Value is [set x]\"")
     check code == Ok
@@ -240,7 +240,7 @@ suite "Command Substitution":
     check code == Error
 
   test "multiple command substitutions":
-    var interp = newInterp()
+    var interp = newEvaluator()
     discard interp.evalWith("set a 1")
     discard interp.evalWith("set b 2")
     let (code, value) = interp.evalWith("set c \"[set a] and [set b]\"")
@@ -249,7 +249,7 @@ suite "Command Substitution":
 
 suite "Multiple Commands":
   test "semicolon separated":
-    var interp = newInterp()
+    var interp = newEvaluator()
     let (code, value) = interp.evalWith("set a 1; set b 2; set c 3")
     check code == Ok
     check value == "3"
@@ -257,13 +257,13 @@ suite "Multiple Commands":
     check interp.evalWith("set b").value == "2"
 
   test "newline separated":
-    var interp = newInterp()
+    var interp = newEvaluator()
     let (code, value) = interp.evalWith("set a 1\nset b 2\nset c 3")
     check code == Ok
     check value == "3"
 
   test "error stops execution":
-    var interp = newInterp()
+    var interp = newEvaluator()
     discard interp.evalWith("set x before")
     let (code, _) = interp.evalWith("set x middle; unknown_cmd; set x after")
     check code == Error
@@ -283,62 +283,62 @@ suite "Edge Cases":
     check code == Ok
 
   test "quoted empty string":
-    var interp = newInterp()
+    var interp = newEvaluator()
     let (code, value) = interp.evalWith("set x \"\"")
     check code == Ok
     check value == ""
 
   test "braced empty string":
-    var interp = newInterp()
+    var interp = newEvaluator()
     let (code, value) = interp.evalWith("set x {}")
     check code == Ok
     check value == ""
 
   test "variable with underscore":
-    var interp = newInterp()
+    var interp = newEvaluator()
     discard interp.evalWith("set my_var 123")
     check interp.evalWith("set my_var").value == "123"
 
   test "variable with numbers":
-    var interp = newInterp()
+    var interp = newEvaluator()
     discard interp.evalWith("set var123 abc")
     check interp.evalWith("set var123").value == "abc"
 
 suite "Quoting and Escaping":
   test "escaped dollar in quotes":
-    var interp = newInterp()
+    var interp = newEvaluator()
     let (code, value) = interp.evalWith("set x \"\\$literal\"")
     check code == Ok
     check value == "$literal"
 
   test "escaped bracket in quotes":
-    var interp = newInterp()
+    var interp = newEvaluator()
     let (code, value) = interp.evalWith("set x \"\\[not a command\\]\"")
     check code == Ok
     check value == "[not a command]"
 
   test "backslash n in quotes":
-    var interp = newInterp()
+    var interp = newEvaluator()
     let (code, value) = interp.evalWith("set x \"line1\\nline2\"")
     check code == Ok
     check value == "line1\nline2"
 
   test "braces preserve everything":
-    var interp = newInterp()
+    var interp = newEvaluator()
     let (code, value) = interp.evalWith("set x {$var [cmd] \\n}")
     check code == Ok
     check value == "$var [cmd] \\n"
 
   test "nested braces":
-    var interp = newInterp()
+    var interp = newEvaluator()
     let (code, value) = interp.evalWith("set x {outer {inner} outer}")
     check code == Ok
     check value == "outer {inner} outer"
 
 suite "Custom Commands":
   test "register and call custom command":
-    var interp = newInterp()
-    interp.commands["double"] = proc(i: Interp, args: seq[string]): EvalResult =
+    var interp = newEvaluator()
+    interp.commands["double"] = proc(i: Evaluator, args: seq[string]): EvalResult =
       if args.len != 1:
         return (Error, "wrong # args")
       return (Ok, args[0] & args[0])
@@ -348,8 +348,8 @@ suite "Custom Commands":
     check value == "hellohello"
 
   test "custom command can access variables":
-    var interp = newInterp()
-    interp.commands["getvar"] = proc(i: Interp, args: seq[string]): EvalResult =
+    var interp = newEvaluator()
+    interp.commands["getvar"] = proc(i: Evaluator, args: seq[string]): EvalResult =
       if i.variables.hasKey("secret"):
         return (Ok, i.variables["secret"])
       return (Error, "no secret")
@@ -360,8 +360,8 @@ suite "Custom Commands":
     check value == "42"
 
   test "custom command can set variables":
-    var interp = newInterp()
-    interp.commands["setmagic"] = proc(i: Interp, args: seq[string]): EvalResult =
+    var interp = newEvaluator()
+    interp.commands["setmagic"] = proc(i: Evaluator, args: seq[string]): EvalResult =
       i.variables["magic"] = "abracadabra"
       return (Ok, "done")
 
