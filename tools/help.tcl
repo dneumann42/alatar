@@ -1,35 +1,11 @@
 #!/usr/bin/env tclsh
 package require Tk
 
-array set theme {
-    base #1e1e1e
-    text #e6e6e6
-    heading #2a2a2a
-    heading_active #333333
-    selected_bg #3a3a3a
-    active_bg #252525
-    button_bg #2a2a2a
-    button_text #e6e6e6
-    selected_text #ffffff
-    tab_bg #222222
-    tab_active_bg #2d2d2d
-    tab_selected_bg #3a3a3a
-    tab_text #cfcfcf
-    tab_selected_text #ffffff
-    entry_bg #2a2a2a
-    entry_text #e6e6e6
-    border #3a3a3a
-    border_active #5a5a5a
-    scrollbar_trough #1f1f1f
-    scrollbar_thumb #3a3a3a
-    scrollbar_thumb_active #4a4a4a
-    scrollbar_arrow #cfcfcf
-}
+set script_dir [file dirname [file normalize [info script]]]
+source [file join $script_dir theme.tcl]
+load_wallust_theme "help"
 
-set theme_file [file normalize "~/.config/wallust/help.tcl"]
-if {[file exists $theme_file]} {
-    catch {source $theme_file}
-}
+ensure_single_instance "help"
 
 proc read_lines {path} {
     set f [open $path r]
@@ -164,8 +140,11 @@ proc populate_tree {rows} {
     foreach item [$tree children {}] {
         $tree delete $item
     }
+    set row_index 0
     foreach row $rows {
-        $tree insert {} end -values $row
+        set tag [expr {$row_index % 2 == 0 ? "row_even" : "row_odd"}]
+        $tree insert {} end -values $row -tags $tag
+        incr row_index
     }
 }
 
@@ -260,41 +239,31 @@ wm geometry . "1200x720"
 bind . <Escape> cleanup_and_exit
 wm protocol . WM_DELETE_WINDOW cleanup_and_exit
 
-ttk::style theme use clam
-ttk::style configure TFrame -background $theme(base) \
-    -bordercolor $theme(border) -lightcolor $theme(border) -darkcolor $theme(border)
-ttk::style configure TLabel -background $theme(base) -foreground $theme(text)
+array set base_font [font actual TkDefaultFont]
+set manual_search_button_font [font create -family $base_font(-family) \
+    -size [expr {$base_font(-size) > 9 ? $base_font(-size) - 1 : $base_font(-size)}]]
+ttk::style configure ManualSearch.TButton -padding {4 1} -font $manual_search_button_font
+
+set keybindings_body_font [font create -family $base_font(-family) \
+    -size [expr {$base_font(-size) + 1}]]
+set keybindings_heading_font [font create -family $base_font(-family) \
+    -size [expr {$base_font(-size) + 2}] -weight bold]
+
+apply_ttk_theme
 ttk::style configure Treeview -background $theme(base) -fieldbackground $theme(base) -foreground $theme(text) \
-    -bordercolor $theme(border) -lightcolor $theme(border) -darkcolor $theme(border)
+    -bordercolor $theme(border) -lightcolor $theme(border) -darkcolor $theme(border) \
+    -font $keybindings_body_font -rowheight [expr {[font metrics $keybindings_body_font -linespace] + 8}]
 ttk::style configure Treeview.Heading -background $theme(heading) -foreground $theme(text) \
-    -borderwidth 0
+    -borderwidth 0 -font $keybindings_heading_font -padding {6 4}
 ttk::style map Treeview -background [list selected $theme(selected_bg) active $theme(active_bg)] -foreground [list selected $theme(selected_text) active $theme(text)]
 ttk::style map Treeview.Heading -background [list active $theme(heading_active)] -foreground [list active $theme(text)]
-ttk::style configure TButton -background $theme(button_bg) -foreground $theme(button_text) \
-    -bordercolor $theme(border) -lightcolor $theme(border) -darkcolor $theme(border)
-ttk::style configure TEntry -fieldbackground $theme(entry_bg) -foreground $theme(entry_text) \
-    -bordercolor $theme(border) -lightcolor $theme(border) -darkcolor $theme(border)
-ttk::style map TEntry \
-    -fieldbackground [list readonly $theme(entry_bg) disabled $theme(entry_bg)] \
-    -bordercolor [list focus $theme(border_active)]
-ttk::style configure TNotebook -background $theme(base) -borderwidth 0 \
-    -bordercolor $theme(border) -lightcolor $theme(border) -darkcolor $theme(border)
-ttk::style configure TNotebook.Tab -background $theme(tab_bg) -foreground $theme(tab_text) -padding {12 6} \
-    -bordercolor $theme(border) -lightcolor $theme(border) -darkcolor $theme(border)
-ttk::style map TNotebook.Tab \
-    -background [list selected $theme(tab_selected_bg) active $theme(tab_active_bg)] \
-    -foreground [list selected $theme(tab_selected_text) active $theme(text)]
-ttk::style configure TScrollbar -troughcolor $theme(scrollbar_trough) -background $theme(scrollbar_thumb) \
-    -bordercolor $theme(border) -lightcolor $theme(border) -darkcolor $theme(border) \
-    -arrowcolor $theme(scrollbar_arrow)
-ttk::style map TScrollbar -background [list active $theme(scrollbar_thumb_active)] \
-    -arrowcolor [list active $theme(text)]
+configure_root_window
 
 grid columnconfigure . 0 -weight 1
 grid rowconfigure . 0 -weight 1
 
 proc build_keybindings_tab {notebook mod_friendly mod_binding} {
-    global bindings tree search_var all_rows
+    global bindings tree search_var all_rows theme
     set keybindings_tab [ttk::frame $notebook.keybindings]
     $notebook add $keybindings_tab -text "Keybindings"
 
@@ -317,6 +286,8 @@ proc build_keybindings_tab {notebook mod_friendly mod_binding} {
 
     set columns {description binding command}
     set tree [ttk::treeview $frm.tree -columns $columns -show headings]
+    $tree tag configure row_even -background $theme(heading)
+    $tree tag configure row_odd -background $theme(base)
 
     $tree heading description -text "Description" -command [list sort_tree $tree $columns description]
     $tree heading binding -text "Binding" -command [list sort_tree $tree $columns binding]
@@ -652,6 +623,144 @@ proc man_section_rank {section} {
     return 99
 }
 
+proc highlight_text_matches {text_widget pattern tag} {
+    $text_widget tag remove $tag 1.0 end
+    if {$pattern eq ""} {
+        return ""
+    }
+    set idx 1.0
+    set first ""
+    while {1} {
+        set pos [$text_widget search -nocase -count count -- $pattern $idx end]
+        if {$pos eq ""} {
+            break
+        }
+        set endpos [$text_widget index "$pos + $count chars"]
+        $text_widget tag add $tag $pos $endpos
+        if {$first eq ""} {
+            set first $pos
+        }
+        set idx $endpos
+    }
+    return $first
+}
+
+proc apply_manual_content_search {args} {
+    global manuals_text manuals_tldr_text manuals_content_search_var theme
+    set pattern [string trim $manuals_content_search_var]
+    foreach widget_name {manuals_text manuals_tldr_text} {
+        if {![info exists $widget_name]} {
+            continue
+        }
+        set widget [set $widget_name]
+        if {$widget eq ""} {
+            continue
+        }
+        $widget tag configure manual_search_hit -background $theme(selected_bg) -foreground $theme(selected_text)
+        $widget tag configure manual_search_current -background $theme(heading_active) -foreground $theme(text)
+        set prev_state [$widget cget -state]
+        $widget configure -state normal
+        set first_match [highlight_text_matches $widget $pattern manual_search_hit]
+        $widget tag remove manual_search_current 1.0 end
+        $widget tag raise manual_search_hit
+        if {$first_match ne ""} {
+            $widget see $first_match
+            set match_len [string length $pattern]
+            $widget tag add manual_search_current $first_match "$first_match + $match_len chars"
+        }
+        $widget configure -state $prev_state
+        if {$first_match ne ""} {
+            set ::manual_search_last($widget) $first_match
+        } else {
+            set ::manual_search_last($widget) ""
+        }
+    }
+}
+
+proc manual_search_get_widgets {} {
+    global manuals_text manuals_tldr_text
+    set widgets {}
+    if {[info exists manuals_text]} {
+        lappend widgets $manuals_text
+    }
+    if {[info exists manuals_tldr_text]} {
+        lappend widgets $manuals_tldr_text
+    }
+    return $widgets
+}
+
+proc manual_search_pick_widgets {} {
+    set focus_widget [focus]
+    set widgets [manual_search_get_widgets]
+    if {[lsearch -exact $widgets $focus_widget] != -1} {
+        set ordered [list $focus_widget]
+        foreach widget $widgets {
+            if {$widget ne $focus_widget} {
+                lappend ordered $widget
+            }
+        }
+        return $ordered
+    }
+    return $widgets
+}
+
+proc manual_search_jump {direction} {
+    global manuals_content_search_var theme
+    set pattern [string trim $manuals_content_search_var]
+    if {$pattern eq ""} {
+        return
+    }
+    foreach widget [manual_search_pick_widgets] {
+        if {$widget eq ""} {
+            continue
+        }
+        set prev_state [$widget cget -state]
+        $widget configure -state normal
+        $widget tag configure manual_search_current -background $theme(heading_active) -foreground $theme(text)
+        if {[llength [$widget tag ranges manual_search_hit]] == 0} {
+            set first_match [highlight_text_matches $widget $pattern manual_search_hit]
+            if {$first_match ne ""} {
+                set ::manual_search_last($widget) $first_match
+            }
+        }
+        set last ""
+        if {[info exists ::manual_search_last($widget)]} {
+            set last $::manual_search_last($widget)
+        }
+        if {$direction eq "prev"} {
+            if {$last eq ""} {
+                set start end
+            } else {
+                set start $last
+            }
+            set pos [$widget search -nocase -backwards -count count -- $pattern $start 1.0]
+            if {$pos eq ""} {
+                set pos [$widget search -nocase -backwards -count count -- $pattern end 1.0]
+            }
+        } else {
+            if {$last eq ""} {
+                set start 1.0
+            } else {
+                set start "$last + 1 chars"
+            }
+            set pos [$widget search -nocase -count count -- $pattern $start end]
+            if {$pos eq ""} {
+                set pos [$widget search -nocase -count count -- $pattern 1.0 end]
+            }
+        }
+        if {$pos ne ""} {
+            set ::manual_search_last($widget) $pos
+            $widget tag remove manual_search_current 1.0 end
+            $widget tag add manual_search_current $pos "$pos + $count chars"
+            $widget tag raise manual_search_current
+            $widget see $pos
+            $widget configure -state $prev_state
+            return
+        }
+        $widget configure -state $prev_state
+    }
+}
+
 proc ansi_256_color {idx} {
     set base {
         "#000000" "#ff5555" "#50fa7b" "#f1fa8c" "#bd93f9" "#ff79c6" "#8be9fd" "#f8f8f2"
@@ -892,6 +1001,7 @@ proc show_manual_by_path {path} {
         $manuals_tldr_text insert end $tldr_output
     }
     $manuals_tldr_text configure -state disabled
+    apply_manual_content_search
 }
 
 proc show_manual {args} {
@@ -906,7 +1016,7 @@ proc show_manual {args} {
 }
 
 proc build_manuals_tab {notebook} {
-    global manuals_list manuals_text manuals_tldr_text manuals_items manuals_filtered manuals_search_var theme manuals_index manuals_page_index
+    global manuals_list manuals_text manuals_tldr_text manuals_items manuals_filtered manuals_search_var manuals_content_search_var theme manuals_index manuals_page_index
     set manuals_tab [ttk::frame $notebook.manuals]
     $notebook add $manuals_tab -text "Manuals"
 
@@ -965,6 +1075,22 @@ proc build_manuals_tab {notebook} {
     ttk::label $manuals_frame.label2 -text "Manuals contents"
     grid $manuals_frame.label2 -row 0 -column 2 -sticky w
 
+    set manuals_content_search_var ""
+    set manuals_content_search_row [ttk::frame $manuals_frame.content_search_row]
+    grid $manuals_content_search_row -row 1 -column 2 -columnspan 2 -sticky ew -pady {6 0}
+    set manuals_content_search_label [ttk::label $manuals_content_search_row.search_label -text "Find in page"]
+    grid $manuals_content_search_label -row 0 -column 0 -sticky w
+    set manuals_content_search_entry [ttk::entry $manuals_content_search_row.search_entry -textvariable manuals_content_search_var -width 28]
+    grid $manuals_content_search_entry -row 0 -column 1 -sticky ew -padx {8 0}
+    set manuals_content_search_prev [ttk::button $manuals_content_search_row.search_prev -text "<" -width 2 \
+        -style ManualSearch.TButton -command [list manual_search_jump prev]]
+    grid $manuals_content_search_prev -row 0 -column 2 -sticky w -padx {8 0}
+    set manuals_content_search_next [ttk::button $manuals_content_search_row.search_next -text ">" -width 2 \
+        -style ManualSearch.TButton -command [list manual_search_jump next]]
+    grid $manuals_content_search_next -row 0 -column 3 -sticky w -padx {6 0}
+    grid columnconfigure $manuals_content_search_row 1 -weight 1
+    trace add variable manuals_content_search_var write apply_manual_content_search
+
     set manuals_pane [ttk::panedwindow $manuals_frame.pane -orient vertical]
     grid $manuals_pane -row 2 -column 2 -columnspan 2 -sticky nsew -padx {12 0} -pady {6 0}
 
@@ -1008,5 +1134,15 @@ proc build_manuals_tab {notebook} {
 
 set notebook [ttk::notebook .notebook]
 grid $notebook -row 0 -column 0 -sticky nsew
-build_keybindings_tab $notebook $mod_friendly $mod_binding
-build_manuals_tab $notebook
+set keybindings_tab [build_keybindings_tab $notebook $mod_friendly $mod_binding]
+set manuals_tab [build_manuals_tab $notebook]
+
+# Select tab based on command line argument
+if {[llength $argv] > 0} {
+    set tab_arg [string tolower [lindex $argv 0]]
+    if {$tab_arg eq "manuals"} {
+        $notebook select $manuals_tab
+    } elseif {$tab_arg eq "keybindings"} {
+        $notebook select $keybindings_tab
+    }
+}

@@ -35,6 +35,11 @@ declare -A pkg_suse=(
   [rss]="newsboat|RSS feed reader"
   [python]="uv|Python development tool"
   [wallust]="!ensure_wallust|A theme tool"
+  [lsd]="lsd|A modern ls"
+  [qt6ct]="qt6ct|Qt6 configuration tool for non-KDE environments"
+  [tcl-tk]="tcl tclx tk|TCL scripting language with Tk GUI toolkit"
+  [emoji-fonts]="google-noto-coloremoji-fonts|Emoji font for GUI applications"
+  [cockpit]="cockpit cockpit-networkmanager cockpit-storaged cockpit-packagekit !enable_cockpit|Web-based system management"
 )
 
 ensure_rustup_default() {
@@ -122,20 +127,20 @@ install_nvim() {
     install_pkgs rust
     ensure_rustup_default
 
-  if command -v bob >/dev/null 2>&1; then
-    :
-  else
-    cargo install bob-nvim
-  fi
+    if command -v bob >/dev/null 2>&1; then
+	:
+    else
+	cargo install bob-nvim
+    fi
 
-  sleep 0.1
-  bob use nightly
+    sleep 0.1
+    bob use nightly
 }
 
 ensure_wallust() {
     install_pkgs rust
     ensure_rustup_default
-    if command -v bob >/dev/null 2>&1; then
+    if command -v wallust >/dev/null 2>&1; then
 	:
     else
 	cargo install wallust
@@ -151,16 +156,21 @@ install_nim() {
 	fi
 }
 
+enable_cockpit() {
+	sudo systemctl enable --now cockpit.socket
+	echo "Cockpit enabled at https://localhost:9090"
+}
+
 show-packages-help() {
     cat <<'EOF'
 Usage: alatar packages <sub-command> [args...]
 
 Sub-Commands:
-        l,list          List logical package names and their distro mappings
+        l,list          List package names and their distro mappings
         i,install       Install one or more logical packages
         p,prelude       Install the core/prelude package set
 
-Logical Packages:
+Packages:
 EOF
     for k in $(printf "%s\n" "${!pkg_suse[@]}" | LC_ALL=C sort); do
         printf "        %-15s %s\n" "$k" "$(pkg_doc "$k")"
@@ -175,7 +185,7 @@ EOF
 }
 
 install_prelude() {
-  install_pkgs build-tools git curl ripgrep
+  install_pkgs build-tools git curl ripgrep lsd qt6ct tcl-tk emoji-fonts cockpit
 }
 
 is_help() {
@@ -196,6 +206,7 @@ alatar-packages() {
       list|ls) list_pkgs ;;
       install|i) install_pkgs "$@" ;;
       install-all) install_pkgs "${!pkg_suse[@]}" ;;
+      prelude) install_prelude ;;
       *) echo "Not a valid pkg command" ;;
   esac
 }

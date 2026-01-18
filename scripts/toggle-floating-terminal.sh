@@ -45,3 +45,4 @@ elif [[ "$node_visible" == "true" ]]; then
 else
   toggle "[con_id=$node_id]" scratchpad show
 fi
+

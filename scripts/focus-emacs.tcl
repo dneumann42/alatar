@@ -12,7 +12,7 @@ set out [exec bash -lc {
 }]
 set ws [string trim $out]
 if {$ws eq ""} {
-  exec emacs &
+  exec emacsclient -c &
 } else {
   puts $ws
 }
