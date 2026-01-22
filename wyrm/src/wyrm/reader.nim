@@ -1,4 +1,4 @@
-import std/strutils
+import std/[strutils, options]
 import ast
 
 {.push gcsafe.}
@@ -46,7 +46,21 @@ proc parseVarSubst(input: string, pos: var int): WordPart =
       pos += 1
     if pos < input.len: pos += 1
 
-  return WordPart(kind: VariableSubst, varName: varName)
+  result = WordPart(kind: VariableSubst, varName: varName)
+
+  if pos < input.len and input[pos] in {'('}:
+    inc pos
+    let start = pos
+    while true:
+      if pos >= input.len:
+        raise CatchableError.newException("Missing closing ')' starting at: " & $start)
+      if input[pos] in {')'}:
+        inc pos
+        break
+      inc pos
+    assert(start != pos)
+    let subStr = input[start ..< pos - 1]
+    result.index = some(subStr)
 
 proc parseCmdSubst(input: string, pos: var int): WordPart =
   pos += 1
@@ -203,6 +217,7 @@ proc skipCommandTerminator(input: string, pos: var int) =
     pos += 1
 
 proc parse*(input: string): Script =
+  echo "PARSING: ", input
   var pos = 0
   result = Script(commands: @[])
   while pos < input.len:

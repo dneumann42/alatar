@@ -1,5 +1,5 @@
-import std/[tables, strutils, math, strformat, options, sequtils]
-import ast, reader
+import std/[tables, strutils, math, strformat, options, sequtils, os]
+import ast, reader, pretty
 
 type
   EvalCode* = enum
@@ -12,6 +12,7 @@ type
 
   Evaluator* = ref object
     environment*: Environment
+    scriptPath*: string
     commands*: Table[string, CommandProc]
 
   CommandProc* = proc(evaluator: Evaluator, args: seq[string]): EvalResult {.gcsafe.}
@@ -70,6 +71,24 @@ type
     evaluator: Evaluator
 
 proc isTruthy(v: string): bool = v != "" and v != "0"
+
+proc isIndexable*(value: string): bool =
+  ## Check if a value can be indexed (contains whitespace-separated elements)
+  value.contains(' ') or value.contains('\t')
+
+proc indexInto*(value: string, index: int): Option[string] =
+  ## Index into a list. If string contains tabs, split by tab (for argv).
+  ## Otherwise split by whitespace (for regular lists).
+  let elements = if value.contains('\t'):
+    value.split('\t')
+  else:
+    value.splitWhitespace()
+  if index >= 0 and index < elements.len:
+    return some(elements[index])
+  elif index < 0 and -index <= elements.len:
+    # Support negative indexing from end
+    return some(elements[elements.len + index])
+  return none(string)
 
 proc skipWhitespace(p: var ExprParser) =
   while p.pos < p.input.len and p.input[p.pos] in {' ', '\t', '\n', '\r'}:
@@ -302,7 +321,6 @@ proc cmdExpr(evaluator: Evaluator, args: seq[string]): EvalResult {.gcsafe.} =
   if err != "":
     return (Error, err)
 
-  # Format: remove trailing .0 for integers
   let intVal = value.int
   if value == intVal.float:
     return (Ok, $intVal)
@@ -377,6 +395,8 @@ proc cmdInfo(evaluator: Evaluator, args: seq[string]): EvalResult {.gcsafe.} =
       for k in evaluator.commands.keys:
         names.add(k)
       return (Ok, names.join(" "))
+    of "script":
+      discard
     else:
       return (Error, "unknown or ambiguous subcommand \"" & args[0] & "\"")
 
@@ -394,30 +414,45 @@ proc cmdInc(evaluator: Evaluator, args: seq[string]): EvalResult {.gcsafe.} =
   return (Ok, $(args[0].parseInt + 1))
 
 proc cmdIf(evaluator: Evaluator, args: seq[string]): EvalResult {.gcsafe.} =
+  if args.len < 2:
+    return (Error, "wrong # args: should be \"if condition body ?elif condition body ...? ?else body?\"")
+
   let exp = args[0]
   let (code, value) = evaluator.evaluate(parse exp)
   if code == Error:
     return (Error, value)
-  if args.len > 1 and code == Ok and value.isTruthy:
+  if value.isTruthy:
     return evaluator.evaluate(parse args[1])
-  var
-    index = 2
+
+  # Check for elif/else clauses
+  var index = 2
   while index < args.len:
-    if args[index] != "elif":
-      break
-    inc index
-    let (expCode, expValue) = evaluator.evaluate(parse args[index])
-    if expCode == Ok and expValue.isTruthy:
+    if args[index] == "elif":
+      if index + 2 >= args.len:
+        return (Error, "wrong # args: elif requires condition and body")
+      let (expCode, expValue) = evaluator.evaluate(parse args[index + 1])
+      if expCode == Error:
+        return (Error, expValue)
+      if expValue.isTruthy:
+        return evaluator.evaluate(parse args[index + 2])
+      index += 3
+    elif args[index] == "else":
+      if index + 1 >= args.len:
+        return (Error, "wrong # args: else requires body")
       return evaluator.evaluate(parse args[index + 1])
-    index += 2
-  if args.len > 2 and args[^2] == "else":
-    return evaluator.evaluate(parse args[^1])
-  return (Error, "Unexpected expression in if")
+    else:
+      return (Error, "unexpected token in if: " & args[index])
+
+  # No branch taken, return empty
+  return (Ok, "")
 
 proc cmdFun(evaluator: Evaluator, args: seq[string]): EvalResult {.gcsafe.} =
   let name = args[0]
   evaluator.commands[name] = proc(e: Evaluator, subArgs: seq[string]): EvalResult {.gcsafe.} =
     e.pushLevel()  # Create function scope
+    # Set argc and argv as local variables in function scope
+    e.setLocalVar("argv", subArgs.join("\t"))
+    e.setLocalVar("argc", $subArgs.len)
     let a = parse(args[1])
     # Set function parameters (if any) as local variables
     if a.commands.len > 0 and a.commands[0].words.len > 0:
@@ -442,7 +477,48 @@ proc cmdWhile(evaluator: Evaluator, args: seq[string]): EvalResult {.gcsafe.} =
     if result.code != Ok:
       return
 
-proc setCommand(evaluator: Evaluator, name: string, fn: proc(evaluator: Evaluator, args: seq[string]): EvalResult {.gcsafe.}) =
+proc cmdEquals(evaluator: Evaluator, args: seq[string]): EvalResult {.gcsafe.} =
+  if args.len < 2:
+    return (Error, "wrong # args: should be \"eq value value ?value ...?\"")
+
+  let first = args[0]
+  for i in 1 ..< args.len:
+    if args[i] != first:
+      return (Ok, "")
+
+  return (Ok, "t")
+
+proc cmdNth(evaluator: Evaluator, args: seq[string]): EvalResult {.gcsafe.} =
+  if args.len != 2:
+    return (Error, "wrong # args: should be \"nth list index\"")
+
+  let list = args[0]
+  try:
+    let idx = parseInt(args[1])
+    let elements = list.splitWhitespace()
+    if idx >= 0 and idx < elements.len:
+      return (Ok, elements[idx])
+    elif idx < 0 and -idx <= elements.len:
+      return (Ok, elements[elements.len + idx])
+    else:
+      return (Error, "list index out of bounds: " & $idx)
+  except ValueError:
+    return (Error, "expected integer index, got: " & args[1])
+  
+proc cmdLength(evaluator: Evaluator, args: seq[string]): EvalResult {.gcsafe.} =
+  if args.len != 1:
+    return (Error, "wrong # args: should be \"length list\"")
+  let list = args[0]
+  if list == "":
+    return (Ok, "0")
+  # Match indexInto behavior: split by tab if tabs present, otherwise whitespace
+  let elements = if list.contains('\t'):
+    list.split('\t')
+  else:
+    list.splitWhitespace()
+  return (Ok, $elements.len)
+  
+proc setCommand*(evaluator: Evaluator, name: string, fn: proc(evaluator: Evaluator, args: seq[string]): EvalResult {.gcsafe.}) =
   evaluator.commands[name] = fn
 
 const PreludeScript = staticRead"prelude.wyrm"
@@ -457,11 +533,20 @@ proc loadPrelude*(evaluator: Evaluator) =
   set "break", cmdBreak
   set "return", cmdReturn
   set "info", cmdInfo
+  set "length", cmdLength
   set "@", cmdExpr
+  set "eq", cmdEquals
+  set "nth", cmdNth
   set "if", cmdIf
   set "fun", cmdFun
   set "eval", cmdEval
   set "while", cmdWhile
+  set("exit") do (evaluator: Evaluator, args: seq[string]) -> EvalResult {.gcsafe.}:
+    quit(0)
+    (Ok, "")
+  set( "*script-path*") do (evaluator: Evaluator, args: seq[string]) -> EvalResult {.gcsafe.}:
+    (Ok, evaluator.scriptPath)
+  
   echo "[Loading prelude]"
   echo evaluator.evaluate(parse PreludeScript)
   
@@ -476,7 +561,28 @@ proc evaluateWord*(evaluator: Evaluator, word: Word): string =
         res.add(part.text)
       of VariableSubst:
         if evaluator.findVar(part.varName).isSome:
-          res.add(evaluator.findVar(part.varName).get())
+          var result = evaluator.findVar(part.varName).get()
+
+          # Handle indexing if present
+          if part.index.isSome:
+            let indexExpr = part.index.get()
+            # Parse and evaluate the index expression
+            let indexScript = parse(indexExpr)
+            let (indexCode, indexValue) = evaluator.evaluate(indexScript)
+            if indexCode == Error:
+              raise newException(ValueError, "error evaluating index: " & indexValue)
+
+            # Convert to integer index
+            try:
+              let idx = parseInt(indexValue)
+              let indexed = indexInto(result, idx)
+              if indexed.isNone:
+                raise newException(ValueError, "list index out of bounds: " & $idx)
+              result = indexed.get()
+            except ValueError as e:
+              raise newException(ValueError, "invalid index: " & indexValue & " - " & e.msg)
+
+          res.add(result)
         else:
           raise newException(ValueError, "can't read \"" & part.varName & "\": no such variable")
       of CommandSubst:
@@ -500,6 +606,10 @@ proc evaluate*(evaluator: Evaluator, cmd: Command): EvalResult {.gcsafe.} =
 
   let cmdName = args[0]
   let cmdArgs = args[1..^1]
+
+  # Empty command name is a no-op (can result from command substitution returning "")
+  if cmdName == "":
+    return (Ok, "")
 
   if not evaluator.commands.hasKey(cmdName):
     try:

@@ -1,4 +1,4 @@
-import std/options
+import std/[options, strutils]
 
 type
   Script* = object
@@ -26,3 +26,9 @@ type
       index*: Option[string]
     of CommandSubst:
       script*: Script
+
+proc getLiteral*(command: Command): string =
+  command.words[0].parts[0].text
+
+proc toNumber*(command: Command): float64 =
+  (try: command.getLiteral().parseFloat() except: 0.0)

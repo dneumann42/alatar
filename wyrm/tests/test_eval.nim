@@ -1,5 +1,6 @@
 import std/[unittest, strutils, tables, options]
 import wyrm
+import wyrm/eval
 
 proc newEvaluator(): Evaluator =
   result = Evaluator.init()
@@ -450,3 +451,146 @@ suite "Function Scoping":
     check value == "6"
     # Global x unchanged because parameter x shadows it
     check interp.evalWith("set x").value == "100"
+
+suite "Recursion":
+  test "can compute factorials":
+    var evaluator = newEvaluator()
+    let (_, value) = evaluator.evaluate(parse """
+      fun factorial {n} {
+        if {[@ { $n < 2 }]} {
+          1
+        } else {
+          set v [factorial [@ { $n - 1 }]]
+          @ { $n * $v }
+        }
+    }
+    factorial 5
+    """)
+    check value == "120"
+
+suite "Indexing":
+  test "can index with literal":
+    var interp = newEvaluator()
+    discard interp.evalWith("set xs {a b c d}")
+    let (code, value) = interp.evalWith("set result $xs(0)")
+    check code == Ok
+    check value == "a"
+
+  test "can index with variable":
+    var interp = newEvaluator()
+    discard interp.evalWith("set xs {a b c d}")
+    discard interp.evalWith("set i 2")
+    let (code, value) = interp.evalWith("set result $xs($i)")
+    check code == Ok
+    check value == "c"
+
+  test "can index with negative index":
+    var interp = newEvaluator()
+    discard interp.evalWith("set xs {a b c d}")
+    let (code, value) = interp.evalWith("set result $xs(-1)")
+    check code == Ok
+    check value == "d"
+
+  test "index out of bounds returns error":
+    var interp = newEvaluator()
+    discard interp.evalWith("set xs {a b c}")
+    let (code, value) = interp.evalWith("set result $xs(10)")
+    check code == Error
+    check "out of bounds" in value
+
+  test "can use isIndexable helper":
+    check isIndexable("a b c") == true
+    check isIndexable("single") == false
+    check isIndexable("") == false
+
+suite "Function argc/argv":
+  test "argc is preserved across nested commands":
+    var interp = newEvaluator()
+    let (code, value) = interp.evalWith("""
+      fun countArgs {} {
+        set result ""
+        set i 0
+        while {@ {$i < $argc}} {
+          set result "$result $i"
+          set i [@ {$i + 1}]
+        }
+        set result
+      }
+      countArgs a b c d
+    """)
+    check code == Ok
+    check value.strip() == "0 1 2 3"
+
+  test "argv contains all arguments":
+    var interp = newEvaluator()
+    let (code, value) = interp.evalWith("""
+      fun getArgs {} {
+        set argv
+      }
+      getArgs one two three
+    """)
+    check code == Ok
+    check value == "one\ttwo\tthree"  # Tab-separated to preserve argument boundaries
+
+  test "key_values iterates correctly over argv":
+    var interp = newEvaluator()
+    let (code, value) = interp.evalWith("""
+      fun testKv {} {
+        set result ""
+        key_values $argv {
+          set result "$result|$k:$v"
+        }
+        set result
+      }
+      testKv a 1 b 2
+    """)
+    check code == Ok
+    check value == "|a:1|b:2"
+
+  test "argv indexing works correctly":
+    var interp = newEvaluator()
+    let (code, value) = interp.evalWith("""
+      fun testIdx {} {
+        set r0 $argv(0)
+        set r1 $argv(1)
+        set r2 $argv(2)
+        set r3 $argv(3)
+        set result "$r0|$r1|$r2|$r3"
+      }
+      testIdx a b c d
+    """)
+    check code == Ok
+    check value == "a|b|c|d"
+
+  test "length of argv matches argc":
+    var interp = newEvaluator()
+    let (code, value) = interp.evalWith("""
+      fun testLen {} {
+        set len [length $argv]
+        set result "$argc=$len"
+      }
+      testLen a b c d
+    """)
+    check code == Ok
+    check value == "4=4"
+
+  test "key_values with multi-word arguments":
+    var interp = newEvaluator()
+    let (code, value) = interp.evalWith("""
+      fun testKv {} {
+        set result ""
+        key_values $argv {
+          set result "$result|$k:$v"
+        }
+        set result
+      }
+      testKv title: " DEV " maxsize: {320 256}
+    """)
+    check code == Ok
+    check value == "|title:: DEV |maxsize::320 256"
+
+  test "key_values with line continuation":
+    var interp = newEvaluator()
+    let (code, value) = interp.evalWith("fun testKv {} {\n  set result \"\"\n  key_values $argv {\n    set result \"$result|$k:$v\"\n  }\n  set result\n}\ntestKv \\\n  title: \" DEV \" \\\n  maxsize: {320 256}")
+    check code == Ok
+    check value == "|title:: DEV |maxsize::320 256"

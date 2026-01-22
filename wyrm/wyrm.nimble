@@ -22,3 +22,5 @@ task test, "Run tests":
 
 task clean, "Remove build artifacts":
   exec "find . -type f -name '*.out' -delete"
+
+requires "nimtk >= 0.1.0"
