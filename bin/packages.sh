@@ -38,7 +38,7 @@ declare -A pkg_suse=(
   [lsd]="lsd|A modern ls"
   [qt6ct]="qt6ct|Qt6 configuration tool for non-KDE environments"
   [tcl-tk]="tcl tclx tk|TCL scripting language with Tk GUI toolkit"
-  [emoji-fonts]="google-noto-coloremoji-fonts|Emoji font for GUI applications"
+  [fonts]="google-noto-coloremoji-fonts intlfonts|Emoji font for GUI applications"
   [cockpit]="cockpit cockpit-networkmanager cockpit-storaged cockpit-packagekit !enable_cockpit|Web-based system management"
 )
 

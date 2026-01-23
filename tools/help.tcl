@@ -235,7 +235,7 @@ while {$line_index < $line_count} {
 }
 
 wm title . " DEV "
-wm geometry . "1200x720"
+wm geometry . "1280x720"
 bind . <Escape> cleanup_and_exit
 wm protocol . WM_DELETE_WINDOW cleanup_and_exit
 
