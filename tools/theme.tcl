@@ -108,6 +108,7 @@ proc ensure_single_instance {{id "my_app" }} {
 
 array set theme {
     base #000000
+    surface0 #0f0f0f
     text #e6e6e6
     heading #1a1a1a
     heading_active #2a2a2a

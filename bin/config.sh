@@ -32,7 +32,7 @@ deploy_dotfiles() {
         local name
         name="$(basename "$path")"
 
-        [[ "$name" == ".git" || "$name" == "zsh" || "$name" == "newsboat" ]] && continue
+        [[ "$name" == ".git" || "$name" == "zsh" || "$name" == "newsboat" || "$name" == "applications" ]] && continue
         [[ -d "$path" ]] || continue
 
         local dest
@@ -75,6 +75,21 @@ deploy_dotfiles() {
         ln -sfn "$newsboat_repo_dir/config" "$newsboat_config_dir/config"
         ln -sfn "$newsboat_repo_dir/urls" "$newsboat_config_dir/urls"
         echo "Linked newsboat config into $newsboat_config_dir"
+    fi
+
+    # Desktop files: symlink to ~/.local/share/applications
+    local apps_repo_dir="$dots_dir/applications"
+    if [[ -d "$apps_repo_dir" ]]; then
+        local apps_dest_dir="$HOME/.local/share/applications"
+        mkdir -p "$apps_dest_dir"
+
+        for desktop_file in "$apps_repo_dir"/*.desktop; do
+            [[ -f "$desktop_file" ]] || continue
+            local filename
+            filename="$(basename "$desktop_file")"
+            ln -sfn "$desktop_file" "$apps_dest_dir/$filename"
+            echo "Linked $desktop_file -> $apps_dest_dir/$filename"
+        done
     fi
 }
 

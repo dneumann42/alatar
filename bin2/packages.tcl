@@ -6,8 +6,7 @@ package provide packages 1.0
 
 set pkg_list {
     nim          {!package-nim-install|Nim programming language}
-    git          {git| Git version control}
-    prelude      {bat ripgrep curl jq lsd| Modern and important utilities}
+    prelude      {git bat ripgrep curl jq lsd polkit polkit-gnome sddm-qt6 sddm-greeter-qt6 qt6-declarative-imports|Modern and important utilities}
 }
 
 proc package-nim-install {} {

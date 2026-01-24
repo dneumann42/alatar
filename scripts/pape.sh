@@ -47,6 +47,14 @@ apply_wallust() {
   if [[ -n "$wallust_bin" ]]; then
     mkdir -p "$HOME/.config/qt6ct/colors"
     "$wallust_bin" run --config-dir "$HOME/.config/wallust" --overwrite-cache "$WALLPAPER" || true
+
+    # Update SDDM theme if it's installed
+    if [[ -d /usr/share/sddm/themes/alatar ]]; then
+      local theme_conf="$HOME/.alatar/alatar_dots/sddm/alatar-theme/theme.conf"
+      if [[ -f "$theme_conf" ]]; then
+        sudo cp "$theme_conf" /usr/share/sddm/themes/alatar/theme.conf 2>/dev/null || true
+      fi
+    fi
   fi
 }
 

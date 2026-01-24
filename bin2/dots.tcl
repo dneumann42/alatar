@@ -34,7 +34,7 @@ proc do-deploy-command {args} {
     foreach path [glob -nocomplain -directory $dotsDir *] {
         set name [file tail $path]
 
-        if {$name in {.git zsh newsboat}} {
+        if {$name in {.git zsh newsboat applications}} {
             continue
         }
 
@@ -95,6 +95,20 @@ proc do-deploy-command {args} {
         create_symlink "$newsboatRepoDir/config" "$newsboatConfigDir/config"
         create_symlink "$newsboatRepoDir/urls" "$newsboatConfigDir/urls"
         puts "Linked newsboat config into $newsboatConfigDir"
+    }
+
+    # Desktop files: symlink to ~/.local/share/applications
+    set appsRepoDir "$dotsDir/applications"
+    if {[file isdirectory $appsRepoDir]} {
+        set appsDestDir "$::env(HOME)/.local/share/applications"
+        file mkdir $appsDestDir
+
+        foreach desktopFile [glob -nocomplain -directory $appsRepoDir *.desktop] {
+            set filename [file tail $desktopFile]
+            set destFile "$appsDestDir/$filename"
+            create_symlink $desktopFile $destFile
+            puts "Linked $desktopFile -> $destFile"
+        }
     }
 
     puts "Dotfiles deployment complete!"

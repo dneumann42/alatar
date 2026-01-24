@@ -28,7 +28,7 @@ if {[file exists $tome_path]} {
     set orig_height [image height tome_original]
 
     # Calculate subsample factor to fit within 128x128
-    set target_size 256
+    set target_size 512
     set subsample_w [expr {int(ceil(double($orig_width) / $target_size))}]
     set subsample_h [expr {int(ceil(double($orig_height) / $target_size))}]
     set subsample [expr {$subsample_w > $subsample_h ? $subsample_w : $subsample_h}]
@@ -112,7 +112,7 @@ proc do_logout {} {
 }
 
 proc do_software {} {
-    exec setsid myrlyn &
+    exec setsid myrlyn-sudo &
     exit
 }
 
@@ -240,7 +240,7 @@ proc make_config_section {parent} {
     } else {
         set config_path "$parent.config"
     }
-    frame $config_path -bg $theme(base)
+    frame $config_path -bg $theme(surface0)
 
     set audio [make_icon_button $config_path audio "🔊" do_audio "Audio" "a"]
     set wallpapers [make_icon_button $config_path wallpapers "🖼" do_wallpapers "Wallpapers" "w"]
@@ -256,64 +256,312 @@ proc make_config_section {parent} {
 
 # Container frame for side-by-side layout
 frame .main_container -bg $theme(base)
-pack .main_container -side top -fill both -expand 1
+
+pack .main_container -side top -fill both -expand 1 -padx 4 -pady 4
+
+# Create card-like styling for group boxes
+frame .main_container.left_card -bg $theme(surface0) -relief raised -borderwidth 2
+frame .main_container.right_card -bg $theme(surface0) -relief raised -borderwidth 2
 
 # Left group box
-labelframe .main_container.left_group \
-    -text "System" \
-    -bg $theme(base) \
+labelframe .main_container.left_card.group \
+    -text " System " \
+    -bg $theme(surface0) \
     -fg $theme(text) \
-    -borderwidth 2 \
-    -relief groove \
-    -padx 4 \
-    -pady 4
+    -borderwidth 0 \
+    -relief flat \
+    -padx 8 \
+    -pady 8 \
+    -font {TkDefaultFont 10 bold}
 
-# Right group box (empty for user to fill)
-labelframe .main_container.right_group \
-    -text "Custom" \
-    -bg $theme(base) \
+# Right group box
+labelframe .main_container.right_card.group \
+    -text " Media " \
+    -bg $theme(surface0) \
     -fg $theme(text) \
-    -borderwidth 2 \
-    -relief groove \
-    -padx 4 \
-    -pady 4
+    -borderwidth 0 \
+    -relief flat \
+    -padx 8 \
+    -pady 8 \
+    -width 280 \
+    -font {TkDefaultFont 10 bold}
 
-pack .main_container.left_group -side left -fill both -expand 1 -padx 8 -pady 8
-pack .main_container.right_group -side right -fill both -expand 1 -padx {0 8} -pady 8
+pack .main_container.left_card.group -fill both -expand 1 -padx 6 -pady 6
+pack .main_container.right_card.group -fill both -expand 1 -padx 6 -pady 6
+
+pack .main_container.left_card -side left -fill both -expand 1 -padx {4 2} -pady 4
+pack .main_container.right_card -side right -fill y -padx {2 4} -pady 4
+pack propagate .main_container.right_card.group 0
+
+# Spotify integration
+# Track currently downloading album art to prevent duplicate downloads
+set ::downloading_art_urls [dict create]
+
+proc get_spotify_metadata {} {
+    set metadata {}
+    if {[catch {exec playerctl -p spotify metadata --format "{{title}}\n{{artist}}\n{{album}}\n{{mpris:artUrl}}\n{{status}}" 2>@1} result]} {
+        # Spotify not running or no track
+        return {}
+    }
+    set lines [split $result "\n"]
+    if {[llength $lines] >= 5} {
+        dict set metadata title [lindex $lines 0]
+        dict set metadata artist [lindex $lines 1]
+        dict set metadata album [lindex $lines 2]
+        dict set metadata artUrl [lindex $lines 3]
+        dict set metadata status [lindex $lines 4]
+    }
+    return $metadata
+}
+
+proc spotify_play_pause {} {
+    catch {exec playerctl -p spotify play-pause}
+}
+
+proc spotify_next {} {
+    catch {exec playerctl -p spotify next}
+    after 500 update_spotify_info
+}
+
+proc spotify_previous {} {
+    catch {exec playerctl -p spotify previous}
+    after 500 update_spotify_info
+}
+
+proc spotify_focus {} {
+    global script_dir
+    set cmd [file join $script_dir "focus-spotify.tcl"]
+    if {[file exists $cmd]} {
+        catch {exec setsid $cmd &}
+    }
+    exit 0;
+}
+
+proc download_album_art {url} {
+    # Handle file:// URLs from Spotify
+    if {[string match "file://*" $url]} {
+        set local_path [string range $url 7 end]
+        if {[file exists $local_path]} {
+            # Convert to PNG if it's a JPEG
+            set png_path [file rootname $local_path].png
+            if {![file exists $png_path]} {
+                catch {exec convert $local_path $png_path}
+            }
+            if {[file exists $png_path]} {
+                return $png_path
+            }
+            return $local_path
+        }
+        return ""
+    }
+
+    # Handle HTTP(S) URLs
+    set cache_dir "$::env(HOME)/.cache/nomicron"
+    file mkdir $cache_dir
+
+    # Extract just the image ID from Spotify URLs
+    # Format: https://i.scdn.co/image/ab67616d0000b2732b0c88ad3d7be225c955e08c
+    set image_id ""
+    if {[regexp {/([a-f0-9]+)$} $url -> image_id]} {
+        set cache_file "$cache_dir/$image_id.png"
+        set temp_jpg "$cache_dir/$image_id.jpg"
+    } else {
+        # Fallback: use simple hash
+        set hash [expr {abs([string hash $url])}]
+        set cache_file "$cache_dir/art_$hash.png"
+        set temp_jpg "$cache_dir/art_$hash.jpg"
+    }
+
+    # Return cached PNG if it exists
+    if {[file exists $cache_file] && [file size $cache_file] > 0} {
+        return $cache_file
+    }
+
+    # Check if already downloading this URL
+    if {[dict exists $::downloading_art_urls $url]} {
+        return ""
+    }
+
+    # Mark as downloading
+    dict set ::downloading_art_urls $url 1
+
+    # Download JPEG
+    if {[catch {exec curl -sL -f --max-time 5 -o $temp_jpg $url 2>@1} err]} {
+        catch {file delete $temp_jpg}
+        dict unset ::downloading_art_urls $url
+        return ""
+    }
+
+    # Verify the file was downloaded and has content
+    if {![file exists $temp_jpg] || [file size $temp_jpg] == 0} {
+        catch {file delete $temp_jpg}
+        dict unset ::downloading_art_urls $url
+        return ""
+    }
+
+    # Convert JPEG to PNG (Tk doesn't have built-in JPEG support)
+    if {[catch {exec convert $temp_jpg $cache_file 2>@1} err]} {
+        catch {file delete $temp_jpg}
+        catch {file delete $cache_file}
+        dict unset ::downloading_art_urls $url
+        return ""
+    }
+
+    # Clean up temporary JPEG
+    catch {file delete $temp_jpg}
+
+    # Mark download complete
+    dict unset ::downloading_art_urls $url
+
+    if {[file exists $cache_file] && [file size $cache_file] > 0} {
+        return $cache_file
+    }
+
+    return ""
+}
+
+proc update_spotify_info {} {
+    global spotify_art_label spotify_title_label spotify_artist_label spotify_album_label
+    global spotify_play_pause_btn theme
+
+    set metadata [get_spotify_metadata]
+
+    if {[dict size $metadata] == 0} {
+        $spotify_title_label configure -text "Spotify not playing"
+        $spotify_artist_label configure -text ""
+        $spotify_album_label configure -text ""
+        $spotify_art_label configure -image ""
+        return
+    }
+
+    set title [dict get $metadata title]
+    set artist [dict get $metadata artist]
+    set album [dict get $metadata album]
+    set artUrl [dict get $metadata artUrl]
+    set status [dict get $metadata status]
+
+    # Update labels
+    $spotify_title_label configure -text $title
+    $spotify_artist_label configure -text "by $artist"
+    $spotify_album_label configure -text "on $album"
+
+    # Update play/pause button icon
+    if {$status eq "Playing"} {
+        $spotify_play_pause_btn.icon configure -text "⏸"
+    } else {
+        $spotify_play_pause_btn.icon configure -text "▶"
+    }
+
+    # Download and display album art
+    if {$artUrl ne ""} {
+        set art_file [download_album_art $artUrl]
+        if {$art_file ne "" && [file exists $art_file]} {
+            if {[catch {
+                # Delete old images if they exist
+                catch {image delete spotify_art_img}
+                catch {image delete spotify_art_display}
+
+                image create photo spotify_art_img -file $art_file
+                set w [image width spotify_art_img]
+                set h [image height spotify_art_img]
+
+                # Calculate subsample to fit 150x150
+                set target 150
+                set subsample_w [expr {int(ceil(double($w) / $target))}]
+                set subsample_h [expr {int(ceil(double($h) / $target))}]
+                set subsample [expr {$subsample_w > $subsample_h ? $subsample_w : $subsample_h}]
+                if {$subsample < 1} { set subsample 1 }
+
+                image create photo spotify_art_display
+                spotify_art_display copy spotify_art_img -subsample $subsample $subsample
+
+                $spotify_art_label configure -image spotify_art_display -text ""
+                image delete spotify_art_img
+            } err]} {
+                puts "Error loading album art: $err"
+            }
+        }
+    }
+}
+
+# Build Spotify UI in right group box
+frame .main_container.right_card.group.spotify -bg $theme(surface0)
+
+# Album art container
+frame .main_container.right_card.group.spotify.art_frame -bg $theme(surface0) -width 150 -height 150
+pack propagate .main_container.right_card.group.spotify.art_frame 0
+set spotify_art_label [label .main_container.right_card.group.spotify.art_frame.art -bg $theme(surface0)]
+pack $spotify_art_label -fill both -expand 1
+pack .main_container.right_card.group.spotify.art_frame -side top -pady {4 8}
+
+# Track info
+set spotify_title_label [label .main_container.right_card.group.spotify.title \
+    -bg $theme(surface0) -fg $theme(text) -font {TkDefaultFont 11 bold} -wraplength 200]
+set spotify_artist_label [label .main_container.right_card.group.spotify.artist \
+    -bg $theme(surface0) -fg $theme(tab_text) -font {TkDefaultFont 9}]
+set spotify_album_label [label .main_container.right_card.group.spotify.album \
+    -bg $theme(surface0) -fg $theme(tab_text) -font {TkDefaultFont 9}]
+
+pack $spotify_title_label -side top -pady 2
+pack $spotify_artist_label -side top -pady 1
+pack $spotify_album_label -side top -pady 1
+
+# Control buttons
+frame .main_container.right_card.group.spotify.controls -bg $theme(surface0)
+set spotify_prev_btn [make_icon_button .main_container.right_card.group.spotify.controls prev "⏮" spotify_previous "Previous"]
+set spotify_play_pause_btn [make_icon_button .main_container.right_card.group.spotify.controls play "▶" spotify_play_pause "Play/Pause"]
+set spotify_next_btn [make_icon_button .main_container.right_card.group.spotify.controls next "⏭" spotify_next "Next"]
+set spotify_focus_btn [make_icon_button .main_container.right_card.group.spotify.controls focus "🎵" spotify_focus "Focus Spotify"]
+
+pack $spotify_prev_btn $spotify_play_pause_btn $spotify_next_btn \
+    -side left -fill x -expand 1
+pack $spotify_focus_btn -side left -fill x -expand 1
+
+pack .main_container.right_card.group.spotify.controls -side top -fill x -pady 8
+
+pack .main_container.right_card.group.spotify -side top -fill both -expand 1
+
+# Update info initially and every 2 seconds
+update_spotify_info
+proc spotify_timer {} {
+    update_spotify_info
+    after 2000 spotify_timer
+}
+spotify_timer
 
 # Build sections inside left group box
-set config_section [make_config_section .main_container.left_group]
+set config_section [make_config_section .main_container.left_card.group]
 
 # Help section with Manuals and Keybindings buttons
-frame .main_container.left_group.help_section -bg $theme(base)
-set btn_manuals [make_icon_button .main_container.left_group.help_section manuals "📚" do_manuals "Manuals" "m"]
-set btn_keybindings [make_icon_button .main_container.left_group.help_section keybindings "⌨" do_keybindings "Keybindings" "k"]
+frame .main_container.left_card.group.help_section -bg $theme(surface0)
+set btn_manuals [make_icon_button .main_container.left_card.group.help_section manuals "📚" do_manuals "Manuals" "m"]
+set btn_keybindings [make_icon_button .main_container.left_card.group.help_section keybindings "⌨" do_keybindings "Keybindings" "k"]
 
-frame .main_container.left_group.tool_section -bg $theme(base)
-set btn_software [make_icon_button .main_container.left_group.tool_section software "Software" do_software "Software" "o"]
-set btn_pathedit [make_icon_button .main_container.left_group.tool_section pathedit "Edit Path" do_pathedit "Edit PATH variable" "e"]
+frame .main_container.left_card.group.tool_section -bg $theme(surface0)
+set btn_software [make_icon_button .main_container.left_card.group.tool_section software "Software" do_software "Software" "o"]
+set btn_pathedit [make_icon_button .main_container.left_card.group.tool_section pathedit "Edit Path" do_pathedit "Edit PATH variable" "e"]
 
 pack $btn_manuals $btn_keybindings \
     -side left \
     -fill x \
     -expand 1 \
 
-frame .main_container.left_group.power_section -bg $theme(base)
-set btn1 [make_button .main_container.left_group.power_section shutdown "Shutdown" $theme(accent1) do_shutdown]
-set btn2 [make_button .main_container.left_group.power_section restart "Restart" $theme(accent2) do_restart]
-set btn3 [make_button .main_container.left_group.power_section logout "Logout" $theme(accent2) do_logout]
+frame .main_container.left_card.group.power_section -bg $theme(surface0)
+set btn1 [make_button .main_container.left_card.group.power_section shutdown "Shutdown" $theme(accent1) do_shutdown]
+set btn2 [make_button .main_container.left_card.group.power_section restart "Restart" $theme(accent2) do_restart]
+set btn3 [make_button .main_container.left_card.group.power_section logout "Logout" $theme(accent2) do_logout]
 
 pack $btn1 $btn2 $btn3 \
     -side top \
     -fill x
 
-pack .main_container.left_group.power_section -side top -fill x -padx 4 -pady {4 0}
+pack .main_container.left_card.group.power_section -side top -fill x -padx 4 -pady {4 0}
 pack $config_section -side top -fill x -padx 4 -pady {4 0}
-pack .main_container.left_group.help_section -side top -fill x -padx 4 -pady {4 0}
+pack .main_container.left_card.group.help_section -side top -fill x -padx 4 -pady {4 0}
 
 pack $btn_software -side top -fill x -padx 4 -pady {4 0}
 pack $btn_pathedit -side top -fill x -padx 4 -pady {0 4}
-pack .main_container.left_group.tool_section -side bottom -fill x
+pack .main_container.left_card.group.tool_section -side bottom -fill x
 
 # Keyboard shortcuts
 bind . <a> do_audio
