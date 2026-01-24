@@ -151,9 +151,18 @@ oo::class create Argument {
 	set name $n
 	set documentation $d
     }
-    method get-short-name {} { return $short-name }
-    method get-name       {} { return $name }
-    method get-doc        {} { return $documentation }
+    method get-short-name {} {
+	variable short-name
+	return ${short-name}
+    }
+    method get-name {} {
+	variable name
+	return $name
+    }
+    method get-doc {} {
+	variable documentation
+	return $documentation
+    }
 }
 
 oo::class create ArgumentManager {
@@ -165,9 +174,58 @@ oo::class create ArgumentManager {
 	    }
 	}
     }
+    method find-by-short {short} {
+	foreach arg $args {
+	    if {[$arg get-short-name] eq $short} {
+		return $arg
+	    }
+	}
+    }
+    method find {name} {
+	# Try long name first
+	set result [my find-by-name $name]
+	if {$result ne ""} {
+	    return $result
+	}
+	# Try short name if single character
+	if {[string length $name] == 1} {
+	    return [my find-by-short $name]
+	}
+	return ""
+    }
     method add-arg {arg} {
 	# TODO: check for colliding name and short names
 	lappend args $arg
+    }
+    method print-help {} {
+	variable args
+	if {![info exists args] || [llength $args] == 0} {
+	    puts "No commands available."
+	    return
+	}
+
+	# Calculate max widths for formatting (including header labels)
+	set maxShort [string length "SHORT"]
+	set maxLong [string length "COMMAND"]
+	foreach arg $args {
+	    set slen [string length [$arg get-short-name]]
+	    set nlen [string length [$arg get-name]]
+	    if {$slen > $maxShort} { set maxShort $slen }
+	    if {$nlen > $maxLong} { set maxLong $nlen }
+	}
+
+	# Print underlined header using terminal escape codes
+	set fmt "%-${maxShort}s  %-${maxLong}s  %s"
+	set header [format $fmt "SHORT" "COMMAND" "DESCRIPTION"]
+	puts "\033\[4m${header}\033\[0m"
+
+	# Print each argument
+	foreach arg $args {
+	    set short [$arg get-short-name]
+	    set long [$arg get-name]
+	    set doc [$arg get-doc]
+	    puts [format $fmt $short $long $doc]
+	}
     }
 }
 
@@ -182,9 +240,17 @@ oo::class create Module {
     }
 
     method invoke {args} {
-	set cmd [my find-by-name [lindex $args 0]]
+	if {[lindex $args 0] eq ""} {
+	    my print-help
+	    return
+	}
+	set cmd [my find [lindex {*}$args 0]]
 	if {$cmd ne ""} {
-	    $cmd invoke [lrange $args 1 end]
+	    $cmd invoke [lrange {*}$args 1 end]
+	} else {
+	    puts "Error: Unknown command '[lindex {*}$args 0]' for module '[my get-name]'"
+	    puts ""
+	    my print-help
 	}
     }
 }
