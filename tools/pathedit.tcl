@@ -57,6 +57,14 @@ proc apply_filter {args} {
     populate_list_box $filtered
 }
 
+proc browse_for_path {} {
+    set dir [tk_chooseDirectory -title "Choose a directory path" -mustexist 1]
+    if {$dir ne ""} {
+        .input_frame.entry delete 0 end
+        .input_frame.entry insert 0 $dir
+    }
+}
+
 proc add_item {} {
     global all_paths
     set text [.input_frame.entry get]
@@ -235,23 +243,31 @@ grid columnconfigure .input_frame 0 -weight 1
 ttk::entry .input_frame.entry
 grid .input_frame.entry -row 0 -column 0 -sticky ew -padx {0 4}
 
+ttk::button .input_frame.browse -text "Browse..." -command browse_for_path -style Small.TButton
+grid .input_frame.browse -row 0 -column 1 -padx 2
+
 ttk::button .input_frame.add -text "Add" -command add_item -style Small.TButton
-grid .input_frame.add -row 0 -column 1 -padx 2
+grid .input_frame.add -row 0 -column 2 -padx 2
 
 ttk::button .input_frame.del -text "Delete" -command delete_item -style Small.TButton
-grid .input_frame.del -row 0 -column 2 -padx 2
+grid .input_frame.del -row 0 -column 3 -padx 2
 
 ttk::button .input_frame.save -text "Save" -command save_paths -style Small.TButton
-grid .input_frame.save -row 0 -column 3 -padx 2
-
-ttk::button .input_frame.quit -text "Quit" -command cleanup_and_exit -style Small.TButton
-grid .input_frame.quit -row 0 -column 4 -padx {2 0}
+grid .input_frame.save -row 0 -column 4 -padx 2
 
 # Bind double-click to start inline editing
 bind .path_list_frame.lb <Double-Button-1> {
     set index [.path_list_frame.lb nearest %y]
     if {$index ne ""} {
         start_inline_edit $index
+    }
+}
+
+# Bind Enter key to start inline editing
+bind .path_list_frame.lb <Return> {
+    set sel [.path_list_frame.lb curselection]
+    if {$sel ne ""} {
+        start_inline_edit $sel
     }
 }
 

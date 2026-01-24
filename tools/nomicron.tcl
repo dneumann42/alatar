@@ -20,6 +20,33 @@ proc cleanup_and_exit {} {
 bind . <Escape> cleanup_and_exit
 wm protocol . WM_DELETE_WINDOW cleanup_and_exit
 
+# Load and display tome image
+set tome_path [file join $script_dir "res" "nomicron.png"]
+if {[file exists $tome_path]} {
+    image create photo tome_original -file $tome_path
+    set orig_width [image width tome_original]
+    set orig_height [image height tome_original]
+
+    # Calculate subsample factor to fit within 128x128
+    set target_size 256
+    set subsample_w [expr {int(ceil(double($orig_width) / $target_size))}]
+    set subsample_h [expr {int(ceil(double($orig_height) / $target_size))}]
+    set subsample [expr {$subsample_w > $subsample_h ? $subsample_w : $subsample_h}]
+
+    if {$subsample < 1} {
+        set subsample 1
+    }
+
+    # Create resized image using subsample
+    image create photo tome_image
+    tome_image copy tome_original -subsample $subsample $subsample
+
+    frame .image_section -bg $theme(base)
+    label .image_section.image -image tome_image -bg $theme(base)
+    pack .image_section.image -pady 8
+    pack .image_section -side top -fill x
+}
+
 # Tooltip system
 proc tooltip_show {widget text} {
     global theme
@@ -92,6 +119,13 @@ proc do_software {} {
 proc do_manuals {} {
     global script_dir
     set cmd [file join $script_dir "help.tcl"]
+    exec setsid $cmd manuals &
+    exit
+}
+
+proc do_pathedit {} {
+    global script_dir
+    set cmd [file join $script_dir "pathedit.tcl"]
     exec setsid $cmd manuals &
     exit
 }
@@ -215,37 +249,71 @@ proc make_config_section {parent} {
     pack $audio $wallpapers $system \
 	-side left \
 	-fill x \
-	-expand 1 \
-	-padx 4 \
-	-pady 8
+	-expand 1
 
     return $config_path
 }
 
-set btn1 [make_button . shutdown "Shutdown" $theme(accent1) do_shutdown]
-set btn2 [make_button . restart "Restart" $theme(accent2) do_restart]
-set btn5 [make_button . logout "Logout" $theme(accent2) do_logout]
-set btn3 [make_button . software "Software" $theme(accent3) do_software]
+# Container frame for side-by-side layout
+frame .main_container -bg $theme(base)
+pack .main_container -side top -fill both -expand 1
 
-set config_section [make_config_section .]
+# Left group box
+labelframe .main_container.left_group \
+    -text "System" \
+    -bg $theme(base) \
+    -fg $theme(text) \
+    -borderwidth 2 \
+    -relief groove \
+    -padx 4 \
+    -pady 4
+
+# Right group box (empty for user to fill)
+labelframe .main_container.right_group \
+    -text "Custom" \
+    -bg $theme(base) \
+    -fg $theme(text) \
+    -borderwidth 2 \
+    -relief groove \
+    -padx 4 \
+    -pady 4
+
+pack .main_container.left_group -side left -fill both -expand 1 -padx 8 -pady 8
+pack .main_container.right_group -side right -fill both -expand 1 -padx {0 8} -pady 8
+
+# Build sections inside left group box
+set config_section [make_config_section .main_container.left_group]
 
 # Help section with Manuals and Keybindings buttons
-frame .help_section -bg $theme(base)
-set btn_manuals [make_icon_button .help_section manuals "📚" do_manuals "Manuals" "m"]
-set btn_keybindings [make_icon_button .help_section keybindings "⌨" do_keybindings "Keybindings" "k"]
+frame .main_container.left_group.help_section -bg $theme(base)
+set btn_manuals [make_icon_button .main_container.left_group.help_section manuals "📚" do_manuals "Manuals" "m"]
+set btn_keybindings [make_icon_button .main_container.left_group.help_section keybindings "⌨" do_keybindings "Keybindings" "k"]
+
+frame .main_container.left_group.tool_section -bg $theme(base)
+set btn_software [make_icon_button .main_container.left_group.tool_section software "Software" do_software "Software" "o"]
+set btn_pathedit [make_icon_button .main_container.left_group.tool_section pathedit "Edit Path" do_pathedit "Edit PATH variable" "e"]
+
 pack $btn_manuals $btn_keybindings \
     -side left \
     -fill x \
     -expand 1 \
-    -padx 4 \
-    -pady 8
 
-pack $btn1 $btn2 $btn5 $btn3 \
+frame .main_container.left_group.power_section -bg $theme(base)
+set btn1 [make_button .main_container.left_group.power_section shutdown "Shutdown" $theme(accent1) do_shutdown]
+set btn2 [make_button .main_container.left_group.power_section restart "Restart" $theme(accent2) do_restart]
+set btn3 [make_button .main_container.left_group.power_section logout "Logout" $theme(accent2) do_logout]
+
+pack $btn1 $btn2 $btn3 \
     -side top \
     -fill x
 
-pack $config_section -side top -fill x -pady {8 0}
-pack .help_section -side top -fill x
+pack .main_container.left_group.power_section -side top -fill x -padx 4 -pady {4 0}
+pack $config_section -side top -fill x -padx 4 -pady {4 0}
+pack .main_container.left_group.help_section -side top -fill x -padx 4 -pady {4 0}
+
+pack $btn_software -side top -fill x -padx 4 -pady {4 0}
+pack $btn_pathedit -side top -fill x -padx 4 -pady {0 4}
+pack .main_container.left_group.tool_section -side bottom -fill x
 
 # Keyboard shortcuts
 bind . <a> do_audio
@@ -253,4 +321,5 @@ bind . <w> do_wallpapers
 bind . <s> do_system
 bind . <m> do_manuals
 bind . <k> do_keybindings
-
+bind . <o> do_software
+bind . <e> do_pathedit

@@ -107,27 +107,27 @@ proc ensure_single_instance {{id "my_app" }} {
 }
 
 array set theme {
-    base #1e1e1e
+    base #000000
     text #e6e6e6
-    heading #2a2a2a
-    heading_active #333333
-    selected_bg #3a3a3a
-    active_bg #252525
-    button_bg #2a2a2a
+    heading #1a1a1a
+    heading_active #2a2a2a
+    selected_bg #2a2a2a
+    active_bg #151515
+    button_bg #1a1a1a
     button_text #e6e6e6
     selected_text #ffffff
-    tab_bg #222222
-    tab_active_bg #2d2d2d
-    tab_selected_bg #3a3a3a
+    tab_bg #0a0a0a
+    tab_active_bg #1a1a1a
+    tab_selected_bg #2a2a2a
     tab_text #cfcfcf
     tab_selected_text #ffffff
-    entry_bg #2a2a2a
+    entry_bg #1a1a1a
     entry_text #e6e6e6
-    border #3a3a3a
-    border_active #5a5a5a
-    scrollbar_trough #1f1f1f
-    scrollbar_thumb #3a3a3a
-    scrollbar_thumb_active #4a4a4a
+    border #2a2a2a
+    border_active #4a4a4a
+    scrollbar_trough #0a0a0a
+    scrollbar_thumb #2a2a2a
+    scrollbar_thumb_active #3a3a3a
     scrollbar_arrow #cfcfcf
     accent1 #cc6666
     accent2 #b5bd68
