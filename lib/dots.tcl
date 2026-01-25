@@ -21,7 +21,6 @@ proc createSymlink {source target} {
             log "Removing existing symlink: $target -> $current_target"
             file delete $target
         } else {
-            log "WARNING: $target already exists and is not a symlink, skipping"
             return
         }
     }

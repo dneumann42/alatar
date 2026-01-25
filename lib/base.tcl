@@ -31,7 +31,7 @@ proc readLine {prompt} {
 }
 
 proc log {message} {
-    puts "INFO: $message"
+    puts "$message"
 }
 
 proc serviceEnabled {service} {
@@ -74,18 +74,32 @@ proc ensureService {service} {
 }
 
 proc ensureZshShell {} {
-    # Get zsh path
-    if {[catch {exec which zsh} zsh_path]} {
-        error "zsh not found in PATH. Ensure zsh is installed first."
+    # Read /etc/shells to find valid zsh path
+    set shells_content [slurp "/etc/shells"]
+    set zsh_path ""
+
+    foreach line [split $shells_content "\n"] {
+        set line [string trim $line]
+        if {$line eq "" || [string range $line 0 0] eq "#"} {
+            continue
+        }
+        if {[string match "*/zsh" $line]} {
+            set zsh_path $line
+            break
+        }
     }
-    set zsh_path [string trim $zsh_path]
+
+    if {$zsh_path eq ""} {
+        error "zsh not found in /etc/shells. Ensure zsh is installed and listed in /etc/shells"
+    }
 
     # Check current user's shell
     set current_shell [string trim $::env(SHELL)]
     if {$current_shell ne $zsh_path} {
         log "Changing default shell to zsh for current user"
-        if {[catch {exec chsh -s $zsh_path 2>@1} result]} {
-            error "Failed to change shell to zsh: $result"
+        puts "Running: chsh -s $zsh_path"
+        if {[catch {exec chsh -s $zsh_path <@stdin >@stdout 2>@stderr} result]} {
+            error "Failed to change shell to zsh"
         }
         puts "Default shell changed to zsh for current user"
         puts "NOTE: You need to log out and back in for this to take effect"
@@ -93,15 +107,15 @@ proc ensureZshShell {} {
 
     # Check root's shell
     if {[catch {exec getent passwd root} root_entry]} {
-        log "WARNING: Could not get root user info: $root_entry"
+        log "WARNING: Could not get root user info"
         return
     }
     set root_shell [lindex [split [string trim $root_entry] :] 6]
     if {$root_shell ne $zsh_path} {
         log "Changing default shell to zsh for root"
-        if {[catch {exec sudo chsh -s $zsh_path root 2>@1} result]} {
+        if {[catch {exec sudo chsh -s $zsh_path root <@stdin >@stdout 2>@stderr}]} {
             # Some systems might not allow this, just warn
-            log "WARNING: Could not change root shell to zsh: $result"
+            log "WARNING: Could not change root shell to zsh"
         } else {
             puts "Default shell changed to zsh for root"
         }

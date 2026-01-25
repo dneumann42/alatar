@@ -1,11 +1,12 @@
 namespace eval ::alatar::deps {
     variable dependencies {
 	flatpak { flatpak }
-	base { lsd bat git ripgrep jq zsh }
+	rust { rustup }
+	base { lsd bat git ripgrep jq zsh !ensure_rust ruby }
 	desktop {
 	    sway rofi ghostty brightnessctl ly pipewire pavucontrol
 	    zellij yazi tldr waybar mpv yt-dlp swayimg zathura zathura-pdf-mupdf
-	    libnotify mako imagemagick
+	    libnotify mako imagemagick inotify-tools !ensure_wallust
 	    @app.zen_browser.zen
 	}
     }
@@ -29,6 +30,13 @@ namespace eval ::alatar::deps {
 	if {[dict exists $dependencies $dep]} {
 	    set actions [dict get $dependencies $dep]
 	    foreach action $actions {
+		if {[string range $action 0 0] eq "!"} {
+		    set proc_name [string range $action 1 end]
+		    if {[catch {$proc_name} result]} {
+		        puts "ERROR: Failed to run $proc_name: $result"
+		    }
+		    continue;
+		}
 		if {[string range $action 0 0] eq "@"} {
 		    ensureDep {flatpak}
 		    set name [string range $action 1 end]
@@ -63,4 +71,30 @@ namespace eval ::alatar::deps {
 	    ensureDep $dep
 	}
     }
+
+    proc ensure_rust {} {
+        ensure {rust}
+        # Check if rustup has a default toolchain configured
+        if {[catch {exec rustup default 2>@1} result] || [string match "*no default toolchain*" $result]} {
+            puts "Setting up Rust default toolchain..."
+            if {[catch {exec rustup default stable 2>@1} result]} {
+                puts "ERROR: Failed to set default Rust toolchain: $result"
+            } else {
+                puts "Successfully set default Rust toolchain to stable"
+            }
+        }
+    }
+
+    proc ensure_wallust {} {
+	if {[catch {exec which wallust}]} {
+	    puts "Installing wallust via cargo..."
+	    ensure_rust
+	    if {[catch {exec cargo install wallust 2>@1} result]} {
+		puts "ERROR: Failed to install wallust: $result"
+	    } else {
+		puts "Successfully installed wallust"
+	    }
+	}
+    }
 }
+
