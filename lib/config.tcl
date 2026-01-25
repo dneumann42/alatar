@@ -18,8 +18,9 @@ namespace eval ::alatar::config {
 	}
 
 	if {![file exists $config_file]} {
+	    set dots [readLine "Dotfiles repo: "]
 	    set data [dict create \
-			  dotfiles "$::env(HOME)/.config" \
+			  dotfiles "$dots" \
 			  alatar "$::env(HOME)/.alatar"]
 	    save
 	} else {

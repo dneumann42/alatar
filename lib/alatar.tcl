@@ -7,7 +7,12 @@ set config_home [file join "$::env(HOME)" ".config" "alatar"]
 source "$alatar_home/lib/base.tcl"
 source "$alatar_home/lib/config.tcl"
 source "$alatar_home/lib/ssh.tcl"
+source "$alatar_home/lib/dependencies.tcl"
 source "$alatar_home/lib/dots.tcl"
+source "$alatar_home/lib/director.tcl"
 
-set x [::alatar::config::get dotfiles]
-puts "$x"
+::alatar::deps::ensure {base}
+
+ensureZshShell
+
+source "$alatar_home/lib/desktop.tcl"

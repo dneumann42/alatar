@@ -1,0 +1,7 @@
+#+TITLE: TODO
+
+Automate Nvidia driver creation
+
+nvidia-open
+nvidia-utils
+nvidia-settings
