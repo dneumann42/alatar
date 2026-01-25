@@ -1,0 +1,11 @@
+#!/usr/bin/sh
+
+export ALATAR_HOME=$HOME/.alatar
+
+if ! command -v tclsh >/dev/null; then
+    sudo pacman -Sy --noconfirm tcl tk
+fi
+
+chmod +x "$ALATAR_HOME/lib/alatar.tcl"
+
+$ALATAR_HOME/lib/alatar.tcl $@
