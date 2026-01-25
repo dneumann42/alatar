@@ -1,6 +1,0 @@
-wm \
-  title: " DEV " \
-  maxsize: {320 256}
-
-bind <Escape> { exit }
-tk mainloop
