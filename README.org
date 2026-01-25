@@ -1,0 +1,19 @@
+#+TITLE: Alatar
+
+A wizard's linux environment for openSUSE tumbleweed.
+
+[[file:alatar.png]]
+
+** Installation
+
+Clone this repository into =~/.alatar=
+
+#+begin_src sh
+git clone https://github.com/dneumann42/alatar.git $HOME/.alatar
+#+end_src
+
+=cd= into the new directory and run =sh ./alatar.sh=, this will display the help screen.
+
+** Usage
+
+Alatar is primarially a command line utility for managing your linux install. alatar comes packed with useful tools.

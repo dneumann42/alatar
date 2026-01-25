@@ -1,0 +1,46 @@
+#!/usr/bin/env bash
+
+# Kitty-based image preview helper for vifm.
+# Expected usage: vifm calls this with `draw x y w h file` and later `clear`.
+
+set -euo pipefail
+
+action="${1:-}"
+
+# Clear previously drawn preview.
+if [[ "${action}" == "clear" ]]; then
+    kitty +kitten icat --clear --silent 2>/dev/null || true
+    exit 0
+fi
+
+if [[ "${action}" != "draw" ]]; then
+    exit 1
+fi
+
+# Require kitty terminal to render images.
+if [[ -z "${KITTY_WINDOW_ID:-}" ]]; then
+    exit 1
+fi
+
+if ! command -v kitty >/dev/null 2>&1; then
+    exit 1
+fi
+
+shift
+px="$1"
+py="$2"
+pw="$3"
+ph="$4"
+file="$5"
+
+[[ -f "${file}" ]] || exit 1
+
+# Clear old preview and draw the new one in the requested cell area.
+kitty +kitten icat \
+    --silent \
+    --clear \
+    --transfer-mode=memory \
+    --stdin=no \
+    --place "${pw}x${ph}@${px}x${py}" \
+    "${file}" \
+    2>/dev/null || exit 1

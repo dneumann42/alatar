@@ -1,0 +1,15 @@
+#! /usr/bin/env -S guile --r7rs -q -s !#
+
+(use-modules (ice-9 rdelim))
+
+(define (read-lines path)
+  (let ((port (open-input-file path)))
+    (define (loop acc)
+      (let ((line (read-line port)))
+        (if (eof-object? port)
+            (begin (close-input-port port)
+                   acc)
+            (loop (cons line acc)))))
+    (loop '())))
+
+(read-lines "/home/dneumann/.config/sway/keybindings.conf")

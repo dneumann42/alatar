@@ -1,0 +1,18 @@
+fun dotimes {count block} {
+  set idx 0
+  while {@ {$idx < $count}} {
+    eval $block
+    set idx [@ {$idx + 1}]
+  }
+}
+
+fun key_values {kvs block} {
+  set index 0
+  set count [length $kvs]
+  while {@ {$index < $count}} {
+    set k $kvs($index)
+    set v $kvs([@ {$index + 1}])
+    eval $block
+    set index [@ {$index + 2}]
+  }
+}

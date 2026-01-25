@@ -1,0 +1,13 @@
+fun wm {} {
+  key_values $argv {
+    puts "K $k"
+    puts "V $v"
+    if {eq $k "title:"} {
+      set-title $v
+    } elif {eq $k "geometry"} {
+      set-geometry $v
+    } elif {eq $k "maxsize:"} {
+      set-maxsize [nth $v 0] [nth $v 1]
+    }
+  }
+}
