@@ -2,10 +2,11 @@ namespace eval ::alatar::deps {
     variable dependencies {
 	flatpak { flatpak }
 	rust { rustup }
-	base { lsd bat git ripgrep jq zsh !ensure_rust ruby }
+	base { lsd bat git ripgrep jq zsh !ensure_rust ruby less man-db man-pages }
 	desktop {
-	    sway swaybg rofi ghostty brightnessctl ly pipewire pipewire-audio pipewire-pulse wireplumber pavucontrol
-	    xdg-desktop-portal xdg-desktop-portal-wlr xdg-desktop-portal-gtk
+	    sway swaybg rofi ghostty brightnessctl ly pipewire
+	    pipewire-audio pipewire-pulse wireplumber pavucontrol
+	    xdg-desktop-portal xdg-desktop-portal-wlr xdg-desktop-portal-gtk xorg-xwayland
 	    zellij yazi tldr waybar mpv yt-dlp ffmpeg swayimg zathura zathura-pdf-mupdf
 	    libnotify mako imagemagick inotify-tools polkit-gnome !ensure_wallust
 	    @app.zen_browser.zen
