@@ -10,6 +10,7 @@ namespace eval ::alatar::deps {
 	    libnotify mako imagemagick inotify-tools polkit-gnome !ensure_wallust
 	    @app.zen_browser.zen
 	    @com.spotify.Client
+	    @com.github.tchx84.Flatseal
 	}
     }
 
