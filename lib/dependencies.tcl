@@ -4,7 +4,8 @@ namespace eval ::alatar::deps {
 	rust { rustup }
 	base { lsd bat git ripgrep jq zsh !ensure_rust ruby }
 	desktop {
-	    sway rofi ghostty brightnessctl ly pipewire pavucontrol
+	    sway rofi ghostty brightnessctl ly pipewire pipewire-audio pipewire-pulse wireplumber pavucontrol
+	    xdg-desktop-portal xdg-desktop-portal-wlr xdg-desktop-portal-gtk
 	    zellij yazi tldr waybar mpv yt-dlp swayimg zathura zathura-pdf-mupdf
 	    libnotify mako imagemagick inotify-tools !ensure_wallust
 	    @app.zen_browser.zen

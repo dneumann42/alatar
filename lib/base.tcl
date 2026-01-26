@@ -74,7 +74,6 @@ proc ensureService {service} {
 }
 
 proc ensureZshShell {} {
-    # Read /etc/shells to find valid zsh path
     set shells_content [slurp "/etc/shells"]
     set zsh_path ""
 
@@ -93,7 +92,6 @@ proc ensureZshShell {} {
         error "zsh not found in /etc/shells. Ensure zsh is installed and listed in /etc/shells"
     }
 
-    # Check current user's shell
     set current_shell [string trim $::env(SHELL)]
     if {$current_shell ne $zsh_path} {
         log "Changing default shell to zsh for current user"
@@ -105,7 +103,6 @@ proc ensureZshShell {} {
         puts "NOTE: You need to log out and back in for this to take effect"
     }
 
-    # Check root's shell
     if {[catch {exec getent passwd root} root_entry]} {
         log "WARNING: Could not get root user info"
         return
@@ -114,10 +111,48 @@ proc ensureZshShell {} {
     if {$root_shell ne $zsh_path} {
         log "Changing default shell to zsh for root"
         if {[catch {exec sudo chsh -s $zsh_path root <@stdin >@stdout 2>@stderr}]} {
-            # Some systems might not allow this, just warn
             log "WARNING: Could not change root shell to zsh"
         } else {
             puts "Default shell changed to zsh for root"
         }
+    }
+}
+
+proc windowIsVisible {mark} {
+    set result [catch {exec swaymsg -t get_tree} tree]
+    if {$result == 0} {
+        if {[catch {exec sh -c "echo '$tree' | jq -r '.. | select(.marks? and (.marks | contains(\[\"$mark\"\])) and .visible == true) | .id'"} id]} {
+            return 0
+        }
+        if {[string length $id] > 0} {
+            return 1
+        }
+    }
+    return 0
+}
+
+proc windowExists {mark} {
+    set result [catch {exec swaymsg -t get_tree} tree]
+    if {$result == 0} {
+        if {[string match "*\"$mark\"*" $tree]} {
+            return 1
+        }
+    }
+    return 0
+}
+
+proc toggleScratchpadWindow {mark spawnCmd {delay 100}} {
+    if {[windowExists $mark]} {
+        if {[windowIsVisible $mark]} {
+            catch {exec swaymsg "\[con_mark=\"$mark\"\] move scratchpad"}
+        } else {
+            catch {exec swaymsg "\[con_mark=\"$mark\"\] scratchpad show"}
+        }
+    } else {
+        eval exec $spawnCmd &
+        after $delay
+        catch {exec swaymsg "\[con_mark=\"$mark\"\] move scratchpad"}
+        after 100
+        catch {exec swaymsg "\[con_mark=\"$mark\"\] scratchpad show"}
     }
 }

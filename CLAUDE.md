@@ -53,24 +53,40 @@ Configures a modern Wayland-based desktop:
 - **Waybar** - Status bar
 - **Rofi** - Application launcher
 - **Ghostty** - Terminal emulator
+- **PipeWire** - Audio server with PulseAudio compatibility
+- **xdg-desktop-portal** - Portal framework for file dialogs and web authentication
+  - xdg-desktop-portal-wlr for wlroots/Sway screen sharing
+  - xdg-desktop-portal-gtk for GTK file choosers and dialogs
 - Various utilities (brightnessctl, mako, etc.)
 
-### Dotfile Management (In Progress)
+### Dotfile Management
 Current implementation:
-- Clones dotfile repository from configured URL
-- Stores in `~/.alatar/alatar_dots/`
+- Clones dotfile repository from configured URL to `~/.alatar/alatar_dots/`
+- Automatically symlinks directories from `alatar_dots/` to `~/.config/`
+- Special handling for specific directories:
+  - `zsh/` files are symlinked to `~/.*` (home directory)
+  - `applications/` desktop files go to `~/.local/share/applications/`
+  - All other directories are symlinked to `~/.config/dirname/`
+- Idempotent symlinking (checks existing links before creating)
 
 **Not yet implemented:**
-- Symlinking dotfiles to appropriate locations in `~/.config/`
-- Selective dotfile installation
-- Dotfile conflict resolution
-- Backup of existing configurations
+- Selective dotfile installation (currently all-or-nothing)
+- Dotfile conflict resolution for non-symlink files
+- Backup mechanism for existing configurations
 
 ### Service Management
 Provides utilities for systemd service control:
 - Check if services are enabled/active
 - Enable and start services
 - Combined operations (ensureService)
+
+### Portal Integration
+Portal configuration is managed via dotfiles (`alatar_dots/xdg-desktop-portal/portals.conf`):
+- File opening and saving dialogs (via xdg-desktop-portal-gtk)
+- Web authentication and URI handling
+- Screen sharing and screenshots (via xdg-desktop-portal-wlr)
+- Automatic backend selection for Sway/wlroots
+- Deployed via the dotfiles linking system in `lib/dots.tcl`
 
 ## Configuration
 
