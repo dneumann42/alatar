@@ -2,6 +2,16 @@
 
 ::alatar::deps::ensure {desktop}
 
+proc runCmd {cmd} {
+    set result {}
+    set status [catch {exec {*}$cmd} result]
+    if {$status != 0} {
+        puts "$result"
+        exit 1
+    }
+    return $result
+}
+
 proc ensureSwaySession {} {
     set session_dir "/usr/share/wayland-sessions"
     set session_file "$session_dir/sway.desktop"
@@ -88,6 +98,42 @@ proc ensureWallpaper {} {
     }
 }
 
+proc ensureFonts {} {
+    set fonts_dir "$::env(HOME)/.local/share/fonts"
+    set res_dir "$::env(ALATAR_HOME)/res"
+
+    if {![file isdirectory $fonts_dir]} {
+        file mkdir $fonts_dir
+    }
+
+    # Copy all font files from res directory
+    if {[file isdirectory $res_dir]} {
+        set font_patterns {*.ttf *.otf *.TTF *.OTF}
+        set copied 0
+
+        foreach pattern $font_patterns {
+            set font_files [glob -nocomplain -directory $res_dir $pattern]
+            foreach font_file $font_files {
+                set font_name [file tail $font_file]
+                set dest "$fonts_dir/$font_name"
+
+                if {![file exists $dest] || [file mtime $font_file] > [file mtime $dest]} {
+                    file copy -force $font_file $dest
+                    puts "Installed font: $font_name"
+                    incr copied
+                }
+            }
+        }
+
+        if {$copied > 0} {
+            # Refresh font cache
+            if {![catch {exec fc-cache -f 2>@1}]} {
+                puts "Font cache refreshed"
+            }
+        }
+    }
+}
+
 proc ensureMakoService {} {
     set service_dir "$::env(HOME)/.config/systemd/user"
     set service_file "$service_dir/mako.service"
@@ -129,8 +175,28 @@ proc ensureFlatpakWaylandPermissions {} {
     }
 }
 
+proc ensureOctopi {} {
+    set aur_dir "$::env(HOME)/.cache/aur"
+
+    if {![file isdirectory "$aur_dir/octopi"]} {
+	runCmd "mkdir -p $aur_dir"
+	runCmd "git clone https://aur.archlinux.org/octopi.git $aur_dir/octopi"
+    }
+
+    if {![commandExists "octopi"]} {
+	puts "Starting octopi installation "
+	cd "$aur_dir/octopi"
+	runCmd "makepkg -si --noconfirm"
+	cd ..
+	runCmd "rm -rf octopi"
+	puts "Installed octopi."
+    }
+}
+
 ensureSwaySession
 ensureWallpaper
+ensureFonts
 enableService ly@tty2.service
 ensureMakoService
 ensureFlatpakWaylandPermissions
+ensureOctopi

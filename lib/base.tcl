@@ -226,3 +226,13 @@ proc toggleScratchpadWindow {mark spawnCmd {delay 100}} {
         catch {exec swaymsg "\[con_mark=\"$mark\"\] scratchpad show"}
     }
 }
+
+proc commandExists {cmd} {
+    set result {}
+    set status [catch {exec which $cmd} result]
+    if {$status == 0 && [string length $result] > 0} {
+        return 1
+    } else {
+        return 0
+    }
+}

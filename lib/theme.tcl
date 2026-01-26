@@ -2,8 +2,14 @@
 
 array set theme {
     base #000000
-    surface0 #0f0f0f
+    mantle #000000
+    crust #000000
     text #e6e6e6
+    subtext0 #b0b0b0
+    overlay0 #808080
+    surface0 #0f0f0f
+    surface1 #1a1a1a
+    surface2 #2a2a2a
     heading #1a1a1a
     heading_active #2a2a2a
     selected_bg #2a2a2a
@@ -24,6 +30,13 @@ array set theme {
     scrollbar_thumb #2a2a2a
     scrollbar_thumb_active #3a3a3a
     scrollbar_arrow #cfcfcf
+    lavender #b4befe
+    sapphire #74c7ec
+    teal #94e2d5
+    peach #fab387
+    red #f38ba8
+    green #a6e3a1
+    mauve #cba6f7
     accent1 #cc6666
     accent2 #b5bd68
     accent3 #f0c674
@@ -76,11 +89,11 @@ proc apply_ttk_theme {} {
         -bordercolor [list focus $theme(border_active)]
     ttk::style configure TNotebook -background $theme(base) -borderwidth 0 \
         -bordercolor $theme(border) -lightcolor $theme(border) -darkcolor $theme(border)
-    ttk::style configure TNotebook.Tab -background $theme(tab_bg) -foreground $theme(tab_text) -padding {12 6} \
+    ttk::style configure TNotebook.Tab -background $theme(tab_bg) -foreground $theme(lavender) -padding {12 6} \
         -bordercolor $theme(border) -lightcolor $theme(border) -darkcolor $theme(border)
     ttk::style map TNotebook.Tab \
         -background [list selected $theme(tab_selected_bg) active $theme(tab_active_bg)] \
-        -foreground [list selected $theme(tab_selected_text) active $theme(text)]
+        -foreground [list selected $theme(peach) active $theme(sapphire)]
     ttk::style configure TScrollbar -troughcolor $theme(scrollbar_trough) -background $theme(scrollbar_thumb) \
         -bordercolor $theme(border) -lightcolor $theme(border) -darkcolor $theme(border) \
         -arrowcolor $theme(scrollbar_arrow)

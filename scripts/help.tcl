@@ -3,6 +3,10 @@
 package require Tk
 source [file join $::env(HOME) .alatar/lib/theme.tcl] 
 
+load_wallust_theme "help"
+apply_ttk_theme
+configure_root_window
+
 proc read_lines {path} {
     set f [open $path r]
     set content [read $f]
@@ -132,7 +136,7 @@ proc sort_tree {tree columns column} {
 }
 
 proc populate_tree {rows} {
-    global tree
+    global tree theme
     foreach item [$tree children {}] {
         $tree delete $item
     }
@@ -245,21 +249,24 @@ set keybindings_body_font [font create -family $base_font(-family) \
 set keybindings_heading_font [font create -family $base_font(-family) \
     -size [expr {$base_font(-size) + 2}] -weight bold]
 
+# Create large Ancient font for tab headings
+set tab_heading_font [font create -family "Ancient" -size 24]
+
 apply_ttk_theme
-ttk::style configure Treeview -background $theme(base) -fieldbackground $theme(base) -foreground $theme(text) \
+ttk::style configure Treeview -background $theme(base) -fieldbackground $theme(base) -foreground $theme(lavender) \
     -bordercolor $theme(border) -lightcolor $theme(border) -darkcolor $theme(border) \
     -font $keybindings_body_font -rowheight [expr {[font metrics $keybindings_body_font -linespace] + 8}]
-ttk::style configure Treeview.Heading -background $theme(heading) -foreground $theme(text) \
+ttk::style configure Treeview.Heading -background $theme(heading) -foreground $theme(peach) \
     -borderwidth 0 -font $keybindings_heading_font -padding {6 4}
-ttk::style map Treeview -background [list selected $theme(selected_bg) active $theme(active_bg)] -foreground [list selected $theme(selected_text) active $theme(text)]
-ttk::style map Treeview.Heading -background [list active $theme(heading_active)] -foreground [list active $theme(text)]
+ttk::style map Treeview -background [list selected $theme(selected_bg) active $theme(active_bg)] -foreground [list selected $theme(sapphire) active $theme(teal)]
+ttk::style map Treeview.Heading -background [list active $theme(heading_active)] -foreground [list active $theme(sapphire)]
 configure_root_window
 
 grid columnconfigure . 0 -weight 1
 grid rowconfigure . 0 -weight 1
 
 proc build_keybindings_tab {notebook mod_friendly mod_binding} {
-    global bindings tree search_var all_rows theme
+    global bindings tree search_var all_rows theme tab_heading_font
     set keybindings_tab [ttk::frame $notebook.keybindings]
     $notebook add $keybindings_tab -text "Keybindings"
 
@@ -268,12 +275,20 @@ proc build_keybindings_tab {notebook mod_friendly mod_binding} {
     grid columnconfigure $keybindings_tab 0 -weight 1
     grid rowconfigure $keybindings_tab 0 -weight 1
 
+    # Large heading in Ancient font
+    set heading_label [ttk::label $frm.heading -text "Keyboard Bindings" -font $tab_heading_font]
+    ttk::style configure KeybindingsHeading.TLabel -foreground $theme(peach) -background $theme(base)
+    $heading_label configure -style KeybindingsHeading.TLabel
+    grid $heading_label -row 0 -column 0 -sticky w -pady {0 12}
+
     set mod_label [ttk::label $frm.mod_label -text "\$mod = $mod_friendly ($mod_binding)"]
-    grid $mod_label -row 0 -column 0 -sticky w -pady {0 6}
+    ttk::style configure ModInfo.TLabel -foreground $theme(teal) -background $theme(base)
+    $mod_label configure -style ModInfo.TLabel
+    grid $mod_label -row 1 -column 0 -sticky w -pady {0 6}
 
     set search_var ""
     set search_row [ttk::frame $frm.search_row]
-    grid $search_row -row 1 -column 0 -columnspan 2 -sticky ew -pady {0 6}
+    grid $search_row -row 2 -column 0 -columnspan 2 -sticky ew -pady {0 6}
     set search_label [ttk::label $search_row.search_label -text "Search"]
     grid $search_label -row 0 -column 0 -sticky w
     set search_entry [ttk::entry $search_row.search_entry -textvariable search_var -width 40]
@@ -296,19 +311,19 @@ proc build_keybindings_tab {notebook mod_friendly mod_binding} {
     set scroll_x [ttk::scrollbar $frm.scroll_x -orient horizontal -command [list $tree xview]]
     $tree configure -yscrollcommand [list $scroll_y set] -xscrollcommand [list $scroll_x set]
 
-    grid $tree -row 2 -column 0 -sticky nsew
-    grid $scroll_y -row 2 -column 1 -sticky ns
-    grid $scroll_x -row 3 -column 0 -sticky ew
+    grid $tree -row 3 -column 0 -sticky nsew
+    grid $scroll_y -row 3 -column 1 -sticky ns
+    grid $scroll_x -row 4 -column 0 -sticky ew
 
     grid columnconfigure $frm 0 -weight 1
-    grid rowconfigure $frm 2 -weight 1
+    grid rowconfigure $frm 3 -weight 1
 
     set all_rows $bindings
     trace add variable search_var write apply_filter
     populate_tree $all_rows
 
     set btn_row [ttk::frame $frm.btn_row]
-    grid $btn_row -row 4 -column 0 -columnspan 2 -pady {8 0} -sticky e
+    grid $btn_row -row 5 -column 0 -columnspan 2 -pady {8 0} -sticky e
     ttk::button $btn_row.quit -text "Quit" -command cleanup_and_exit
     grid $btn_row.quit -row 0 -column 0
 
@@ -454,11 +469,11 @@ proc apply_manual_highlighting {text_widget} {
     global theme
     ensure_manual_fonts
     global man_bold_font man_underline_font
-    $text_widget tag configure man_header -foreground $theme(selected_text) -background $theme(heading) -font $man_bold_font
-    $text_widget tag configure man_option -foreground $theme(border_active) -font $man_bold_font
-    $text_widget tag configure man_code -foreground $theme(text) -background $theme(heading_active)
-    $text_widget tag configure man_bold -font $man_bold_font -foreground $theme(text)
-    $text_widget tag configure man_underline -font $man_underline_font -foreground $theme(text)
+    $text_widget tag configure man_header -foreground $theme(lavender) -background $theme(heading) -font $man_bold_font
+    $text_widget tag configure man_option -foreground $theme(peach) -font $man_bold_font
+    $text_widget tag configure man_code -foreground $theme(green) -background $theme(heading_active)
+    $text_widget tag configure man_bold -font $man_bold_font -foreground $theme(sapphire)
+    $text_widget tag configure man_underline -font $man_underline_font -foreground $theme(teal)
     $text_widget tag remove man_header 1.0 end
     $text_widget tag remove man_option 1.0 end
     $text_widget tag remove man_code 1.0 end
@@ -652,8 +667,8 @@ proc apply_manual_content_search {args} {
         if {$widget eq ""} {
             continue
         }
-        $widget tag configure manual_search_hit -background $theme(selected_bg) -foreground $theme(selected_text)
-        $widget tag configure manual_search_current -background $theme(heading_active) -foreground $theme(text)
+        $widget tag configure manual_search_hit -background $theme(mauve) -foreground $theme(base)
+        $widget tag configure manual_search_current -background $theme(peach) -foreground $theme(base)
         set prev_state [$widget cget -state]
         $widget configure -state normal
         set first_match [highlight_text_matches $widget $pattern manual_search_hit]
@@ -1012,22 +1027,28 @@ proc show_manual {args} {
 }
 
 proc build_manuals_tab {notebook} {
-    global manuals_list manuals_text manuals_tldr_text manuals_items manuals_filtered manuals_search_var manuals_content_search_var theme manuals_index manuals_page_index
+    global manuals_list manuals_text manuals_tldr_text manuals_items manuals_filtered manuals_search_var manuals_content_search_var theme manuals_index manuals_page_index tab_heading_font
     set manuals_tab [ttk::frame $notebook.manuals]
     $notebook add $manuals_tab -text "Manuals"
 
     set manuals_frame [ttk::frame $manuals_tab.frame -padding 10]
     grid $manuals_frame -row 0 -column 0 -sticky nsew
-    
+
     grid columnconfigure $manuals_tab 0 -weight 1
     grid rowconfigure $manuals_tab 0 -weight 1
-    
+
+    # Large heading in Ancient font
+    set heading_label [ttk::label $manuals_frame.heading -text "Manuals for Linux" -font $tab_heading_font]
+    ttk::style configure ManualsHeading.TLabel -foreground $theme(sapphire) -background $theme(base)
+    $heading_label configure -style ManualsHeading.TLabel
+    grid $heading_label -row 0 -column 0 -columnspan 4 -sticky w -pady {0 12}
+
     set manuals_label [ttk::label $manuals_frame.label -text "Manuals List"]
-    grid $manuals_label -row 0 -column 0 -sticky w
+    grid $manuals_label -row 1 -column 0 -sticky w
 
     set manuals_search_var ""
     set manuals_search_row [ttk::frame $manuals_frame.search_row]
-    grid $manuals_search_row -row 1 -column 0 -columnspan 2 -sticky ew -pady {6 0}
+    grid $manuals_search_row -row 2 -column 0 -columnspan 2 -sticky ew -pady {6 0}
     set manuals_search_label [ttk::label $manuals_search_row.search_label -text "Search"]
     grid $manuals_search_label -row 0 -column 0 -sticky w
     set manuals_search_entry [ttk::entry $manuals_search_row.search_entry -textvariable manuals_search_var -width 28]
@@ -1035,15 +1056,15 @@ proc build_manuals_tab {notebook} {
     grid columnconfigure $manuals_search_row 1 -weight 1
 
     set manuals_list [listbox $manuals_frame.list -height 20 -exportselection 0 \
-        -background $theme(base) -foreground $theme(text) \
-        -selectbackground $theme(selected_bg) -selectforeground $theme(selected_text) \
-        -highlightbackground $theme(border) -highlightcolor $theme(border_active)]
+        -background $theme(base) -foreground $theme(sapphire) \
+        -selectbackground $theme(mauve) -selectforeground $theme(base) \
+        -highlightbackground $theme(border) -highlightcolor $theme(lavender)]
     set manuals_scroll [ttk::scrollbar $manuals_frame.scroll -orient vertical -command [list $manuals_list yview]]
     $manuals_list configure -yscrollcommand [list $manuals_scroll set]
-    grid $manuals_list -row 2 -column 0 -sticky nsew -pady {6 0}
-    grid $manuals_scroll -row 2 -column 1 -sticky ns -pady {6 0}
+    grid $manuals_list -row 3 -column 0 -sticky nsew -pady {6 0}
+    grid $manuals_scroll -row 3 -column 1 -sticky ns -pady {6 0}
     grid columnconfigure $manuals_frame 0 -weight 1
-    grid rowconfigure $manuals_frame 2 -weight 1
+    grid rowconfigure $manuals_frame 3 -weight 1
 
     set manuals_items {}
     set manuals_index [dict create]
@@ -1069,11 +1090,11 @@ proc build_manuals_tab {notebook} {
     trace add variable manuals_search_var write apply_manuals_filter
 
     ttk::label $manuals_frame.label2 -text "Manuals contents"
-    grid $manuals_frame.label2 -row 0 -column 2 -sticky w
+    grid $manuals_frame.label2 -row 1 -column 2 -sticky w
 
     set manuals_content_search_var ""
     set manuals_content_search_row [ttk::frame $manuals_frame.content_search_row]
-    grid $manuals_content_search_row -row 1 -column 2 -columnspan 2 -sticky ew -pady {6 0}
+    grid $manuals_content_search_row -row 2 -column 2 -columnspan 2 -sticky ew -pady {6 0}
     set manuals_content_search_label [ttk::label $manuals_content_search_row.search_label -text "Find in page"]
     grid $manuals_content_search_label -row 0 -column 0 -sticky w
     set manuals_content_search_entry [ttk::entry $manuals_content_search_row.search_entry -textvariable manuals_content_search_var -width 28]
@@ -1088,7 +1109,7 @@ proc build_manuals_tab {notebook} {
     trace add variable manuals_content_search_var write apply_manual_content_search
 
     set manuals_pane [ttk::panedwindow $manuals_frame.pane -orient vertical]
-    grid $manuals_pane -row 2 -column 2 -columnspan 2 -sticky nsew -padx {12 0} -pady {6 0}
+    grid $manuals_pane -row 3 -column 2 -columnspan 2 -sticky nsew -padx {12 0} -pady {6 0}
 
     set manuals_man_pane [ttk::frame $manuals_frame.man_pane]
     set manuals_tldr_pane [ttk::frame $manuals_frame.tldr_pane]
@@ -1108,6 +1129,8 @@ proc build_manuals_tab {notebook} {
     grid rowconfigure $manuals_man_pane 0 -weight 1
 
     ttk::label $manuals_tldr_pane.label -text "TLDR"
+    ttk::style configure TldrLabel.TLabel -foreground $theme(green) -background $theme(base)
+    $manuals_tldr_pane.label configure -style TldrLabel.TLabel
     grid $manuals_tldr_pane.label -row 0 -column 0 -sticky w -pady {0 4}
     set manuals_tldr_text [text $manuals_tldr_pane.text -wrap word -height 8 -font TkFixedFont \
         -background $theme(base) -foreground $theme(text) \
