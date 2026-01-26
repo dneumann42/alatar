@@ -44,7 +44,7 @@ proc ensureWallpaper {} {
         return
     }
 
-    puts "Generating death metal abstract wallpaper..."
+    puts "Generating abstract wallpaper..."
 
     # Get screen resolution, default to 1920x1080 if can't detect
     set width 1920
@@ -88,6 +88,49 @@ proc ensureWallpaper {} {
     }
 }
 
+proc ensureMakoService {} {
+    set service_dir "$::env(HOME)/.config/systemd/user"
+    set service_file "$service_dir/mako.service"
+
+    if {![file exists $service_file]} {
+        if {![file isdirectory $service_dir]} {
+            file mkdir $service_dir
+        }
+
+        set content {[Unit]
+Description=Mako notification daemon
+PartOf=graphical-session.target
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/mako
+
+[Install]
+WantedBy=sway-session.target}
+
+        dump $service_file $content
+        puts "Created mako systemd user service at $service_file"
+    }
+
+    enableService -user mako.service
+}
+
+proc ensureFlatpakWaylandPermissions {} {
+    set apps {com.spotify.Client}
+
+    foreach app $apps {
+        if {[catch {exec flatpak info $app 2>@1}]} {
+            continue
+        }
+
+        if {[catch {exec flatpak override --user $app --socket=wayland --socket=fallback-x11 --share=ipc 2>@1} result]} {
+            puts "WARNING: Failed to set permissions for $app: $result"
+        }
+    }
+}
+
 ensureSwaySession
 ensureWallpaper
-enableService "ly@tty2.service"
+enableService ly@tty2.service
+ensureMakoService
+ensureFlatpakWaylandPermissions

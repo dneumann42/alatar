@@ -34,43 +34,113 @@ proc log {message} {
     puts "$message"
 }
 
-proc serviceEnabled {service} {
-    if {[catch {exec systemctl is-enabled $service 2>@1} result]} {
-	return 0
+proc serviceEnabled {args} {
+    set user 0
+    set service ""
+
+    foreach arg $args {
+        if {$arg eq "-user"} {
+            set user 1
+        } else {
+            set service $arg
+        }
+    }
+
+    set cmd [list systemctl]
+    if {$user} {
+        lappend cmd --user
+    }
+    lappend cmd is-enabled $service
+    if {[catch {exec {*}$cmd 2>@1} result]} {
+        return 0
     }
     return [expr {[string trim $result] eq "enabled"}]
 }
 
-proc enableService {service} {
-    if {[serviceEnabled $service]} {
-	return
+proc enableService {args} {
+    set user 0
+    set service ""
+
+    foreach arg $args {
+        if {$arg eq "-user"} {
+            set user 1
+        } else {
+            set service $arg
+        }
     }
-    if {[catch {exec sudo systemctl enable $service 2>@1} result]} {
-	error "Failed to enable service $service: $result"
+
+    if {[serviceEnabled {*}$args]} {
+        return
     }
-    puts "Enabled service $service"
+    set cmd [list systemctl]
+    if {!$user} {
+        set cmd [list sudo {*}$cmd]
+    } else {
+        lappend cmd --user
+    }
+    lappend cmd enable $service
+    if {[catch {exec {*}$cmd 2>@1} result]} {
+        error "Failed to enable service $service: $result"
+    }
+    set type [expr {$user ? "user service" : "service"}]
+    puts "Enabled $type $service"
 }
 
-proc serviceActive {service} {
-    if {[catch {exec systemctl is-active $service 2>@1} result]} {
-	return 0
+proc serviceActive {args} {
+    set user 0
+    set service ""
+
+    foreach arg $args {
+        if {$arg eq "-user"} {
+            set user 1
+        } else {
+            set service $arg
+        }
     }
-    return [expr {$result eq "active"}]
+
+    set cmd [list systemctl]
+    if {$user} {
+        lappend cmd --user
+    }
+    lappend cmd is-active $service
+    if {[catch {exec {*}$cmd 2>@1} result]} {
+        return 0
+    }
+    return [expr {[string trim $result] eq "active"}]
 }
 
-proc startService {service} {
-    if {[serviceActive $service]} {
-	return
+proc startService {args} {
+    set user 0
+    set service ""
+
+    foreach arg $args {
+        if {$arg eq "-user"} {
+            set user 1
+        } else {
+            set service $arg
+        }
     }
-    if {[catch {exec sudo systemctl start $service 2>@1} result]} {
-	error "Failed to start service $service: $result"
+
+    if {[serviceActive {*}$args]} {
+        return
     }
-    puts "Started service $service"
+    set cmd [list systemctl]
+    if {!$user} {
+        set cmd [list sudo {*}$cmd]
+    } else {
+        lappend cmd --user
+    }
+    lappend cmd start $service
+    if {[catch {exec {*}$cmd 2>@1} result]} {
+        error "Failed to start service $service: $result"
+    }
+    set type [expr {$user ? "user service" : "service"}]
+    puts "Started $type $service"
 }
 
-proc ensureService {service} {
-    enableService $service
-    startService $service
+proc ensureService {args} {
+    enableService {*}$args
+    startService {*}$args
 }
 
 proc ensureZshShell {} {
