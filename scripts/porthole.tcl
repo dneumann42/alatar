@@ -4,14 +4,30 @@
 #   ← →  / n p / scroll    navigate
 #   space                   next
 #   c                       copy URL to clipboard
+#   s                       save wallpaper
 #   r                       refresh from Reddit
 #   q / Esc                 quit
 
 package require Tk
+source [file join $env(HOME) .alatar/lib/theme.tcl]
+load_wallust_theme "porthole"
+apply_ttk_theme
+configure_root_window
+
+proc brighten_color {color amount} {
+    set color [string trimleft $color "#"]
+    scan $color "%2x%2x%2x" r g b
+    set r [expr {min(255, $r + $amount)}]
+    set g [expr {min(255, $g + $amount)}]
+    set b [expr {min(255, $b + $amount)}]
+    return [format "#%02x%02x%02x" $r $g $b]
+}
 
 # ─── config ─────────────────────────────────────────
 set ::cache_dir [file tildeexpand ~/.local/cache/porthole]
 file mkdir $::cache_dir
+set ::save_dir  [file join $env(HOME) Media pictures wallpapers]
+file mkdir $::save_dir
 
 # ─── state ──────────────────────────────────────────
 set ::urls         {}
@@ -32,36 +48,57 @@ wm title . Porthole
 wm geometry . 1200x800
 wm minsize . 320 240
 
-canvas .cv -bg #0a0a0a -highlightthickness 0
+canvas .cv -bg $theme(base) -highlightthickness 0
 pack .cv -fill both -expand 1
 
-frame .nav -bg #111111
+frame .nav -bg $theme(surface0) -highlightthickness 1 -highlightbackground $theme(border)
 pack .nav -fill x -side bottom
 
+# prev — lavender
 button .nav.prev -text "\u25C0" -command prev \
-    -bg #111111 -fg #cccccc -activebackground #252525 -activeforeground #ffffff \
+    -bg $theme(lavender) -fg #ffffff \
+    -activebackground [brighten_color $theme(lavender) 25] -activeforeground #ffffff \
     -relief flat -bd 0 -font {Helvetica 18} -padx 14 -pady 8
-pack .nav.prev -side left
+pack .nav.prev -side left -padx {4 0} -pady 4
 
+# next — sapphire
 button .nav.next -text "\u25B6" -command next \
-    -bg #111111 -fg #cccccc -activebackground #252525 -activeforeground #ffffff \
+    -bg $theme(sapphire) -fg #ffffff \
+    -activebackground [brighten_color $theme(sapphire) 25] -activeforeground #ffffff \
     -relief flat -bd 0 -font {Helvetica 18} -padx 14 -pady 8
-pack .nav.next -side right
+pack .nav.next -side right -padx {0 4} -pady 4
 
-label .nav.count -text "" -bg #111111 -fg #eeeeee -font {Helvetica 14}
-pack .nav.count -side left -padx 14
+# counter — peach
+label .nav.count -text "" -bg $theme(surface0) -fg $theme(peach) -font {Helvetica 14 bold}
+pack .nav.count -side left -padx 12
 
-label .nav.info -text "" -bg #111111 -fg #555555 -font {Helvetica 10}
-pack .nav.info -side left
+# save — green
+button .nav.save -text "Save" -command save \
+    -bg $theme(green) -fg #000000 \
+    -activebackground [brighten_color $theme(green) 25] -activeforeground #000000 \
+    -relief flat -bd 0 -font {Helvetica 11 bold} -padx 12 -pady 8
+pack .nav.save -side left -padx {0 12} -pady 4
+
+# copy — mauve
+button .nav.copy -text "Copy" -command copy_url \
+    -bg $theme(mauve) -fg #000000 \
+    -activebackground [brighten_color $theme(mauve) 25] -activeforeground #000000 \
+    -relief flat -bd 0 -font {Helvetica 11 bold} -padx 12 -pady 8
+pack .nav.copy -side left -pady 4
+
+# info — subtext
+label .nav.info -text "" -bg $theme(surface0) -fg $theme(subtext0) -font {Helvetica 10}
+pack .nav.info -side left -padx 12
 
 # ─── core ───────────────────────────────────────────
 
 # Show a message on the canvas (does not touch .nav.info)
 proc status {msg} {
+    global theme
     update
     .cv delete all
     .cv create text [expr {[winfo width .cv] / 2}] [expr {[winfo height .cv] / 2}] \
-        -text $msg -fill #444444 -font {Helvetica 18}
+        -text $msg -fill $theme(subtext0) -font {Helvetica 18}
 }
 
 # Fetch image URLs from r/wallpaper into ::urls
@@ -105,7 +142,7 @@ proc download {url} {
 
 # Render the image at ::idx
 proc show {} {
-    global urls idx photo info_text
+    global urls idx photo info_text theme
 
     set n [llength $urls]
     if {$n == 0} return
@@ -118,7 +155,7 @@ proc show {} {
     # download
     if {[catch {set src [download $url]} err]} {
         status "Download failed"
-        .nav.info configure -text $err
+        .nav.info configure -text $err -fg $theme(red)
         return
     }
 
@@ -126,7 +163,7 @@ proc show {} {
     set dims ""
     catch {set dims [exec magick identify -format "%wx%h" $src]}
     set info_text "$dims   $url"
-    .nav.info configure -text $info_text
+    .nav.info configure -text $info_text -fg $theme(subtext0)
 
     # scale to fit canvas
     update
@@ -135,7 +172,7 @@ proc show {} {
     set dst [file join $::cache_dir .scaled.png]
     if {[catch {exec magick $src -resize "${cw}x${ch}" $dst} err]} {
         status "Processing failed"
-        .nav.info configure -text $err
+        .nav.info configure -text $err -fg $theme(red)
         return
     }
 
@@ -168,11 +205,38 @@ proc prev    {} { incr ::idx -1; show }
 proc refresh {} { set ::idx 0; if {[fetch]} show }
 
 proc copy_url {} {
+    global theme
     if {[llength $::urls] == 0} return
     clipboard clear
     clipboard append [lindex $::urls $::idx]
-    .nav.info configure -text "Copied!"
-    after 1500 { .nav.info configure -text $::info_text }
+    .nav.info configure -text "Copied!" -fg $theme(green)
+    after 1500 { .nav.info configure -text $::info_text -fg $::theme(subtext0) }
+}
+
+proc save {} {
+    global theme
+    if {[llength $::urls] == 0} return
+    set url  [lindex $::urls $::idx]
+    set name [file tail [lindex [split $url ?] 0]]
+    set src  [file join $::cache_dir $name]
+    if {[string tolower [file extension $name]] ne ".png"} {
+        set name [file rootname $name].png
+        set dst  [file join $::save_dir $name]
+        if {[catch {exec magick $src $dst} err]} {
+            .nav.info configure -text "Save failed: $err" -fg $theme(red)
+            after 2000 { .nav.info configure -text $::info_text -fg $::theme(subtext0) }
+            return
+        }
+    } else {
+        set dst [file join $::save_dir $name]
+        if {[catch {file copy -force $src $dst} err]} {
+            .nav.info configure -text "Save failed: $err" -fg $theme(red)
+            after 2000 { .nav.info configure -text $::info_text -fg $::theme(subtext0) }
+            return
+        }
+    }
+    .nav.info configure -text "Saved $name" -fg $theme(green)
+    after 2000 { .nav.info configure -text $::info_text -fg $::theme(subtext0) }
 }
 
 # Debounced resize — re-scale current image after the window stops moving
@@ -195,6 +259,7 @@ foreach w {. .cv} {
     bind $w <Button-5>   next
     bind $w <r>          refresh
     bind $w <c>          copy_url
+    bind $w <s>          save
     bind $w <q>          exit
     bind $w <Escape>     exit
 }
