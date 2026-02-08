@@ -346,3 +346,6 @@ proc run_update {} {
 
 # Load updates on startup
 load_updates
+
+# Start theme watcher (uses inotify for instant updates)
+start_theme_watcher "theme"

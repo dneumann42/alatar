@@ -39,3 +39,6 @@ setup_keybindings
 
 # Start media timer
 start_spotify_timer
+
+# Start theme watcher (uses inotify for instant updates)
+start_theme_watcher "nomicron"

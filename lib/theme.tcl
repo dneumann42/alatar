@@ -105,3 +105,217 @@ proc configure_root_window {} {
     global theme
     . configure -background $theme(base)
 }
+
+# Reload theme and reapply to all widgets
+proc reload_theme {{config_name ""}} {
+    global theme theme_old
+
+    # Save old theme for color mapping
+    array set theme_old [array get theme]
+
+    # Reload theme file
+    load_wallust_theme $config_name
+
+    # Reapply TTK theme
+    apply_ttk_theme
+
+    # Update root window
+    configure_root_window
+
+    # Recursively update all widgets
+    update_widget_colors .
+}
+
+# Map old color to new color
+proc map_theme_color {old_color} {
+    global theme theme_old
+
+    # Return as-is if not a hex color
+    if {![string match "#*" $old_color]} {
+        return $old_color
+    }
+
+    # Try to find which theme color this was
+    foreach {key value} [array get theme_old] {
+        if {$value eq $old_color} {
+            # Found a match, return the new value for this key
+            if {[info exists theme($key)]} {
+                return $theme($key)
+            }
+        }
+    }
+
+    # No match found, return original
+    return $old_color
+}
+
+# Recursively update widget colors
+proc update_widget_colors {widget} {
+    global theme
+
+    # Update this widget based on its type and configuration
+    set widget_class [winfo class $widget]
+
+    catch {
+        switch -glob $widget_class {
+            "Frame" {
+                set current_bg [$widget cget -bg]
+                if {[string match "#*" $current_bg]} {
+                    set new_bg [map_theme_color $current_bg]
+                    if {$new_bg ne $current_bg} {
+                        $widget configure -bg $new_bg
+                    }
+                }
+
+                # Handle highlightbackground for borders
+                if {[catch {$widget cget -highlightbackground} current_border] == 0} {
+                    if {[string match "#*" $current_border]} {
+                        set new_border [map_theme_color $current_border]
+                        if {$new_border ne $current_border} {
+                            $widget configure -highlightbackground $new_border
+                        }
+                    }
+                }
+            }
+            "Label" {
+                set current_bg [$widget cget -bg]
+                set current_fg [$widget cget -fg]
+
+                if {[string match "#*" $current_bg]} {
+                    set new_bg [map_theme_color $current_bg]
+                    if {$new_bg ne $current_bg} {
+                        $widget configure -bg $new_bg
+                    }
+                }
+
+                if {[string match "#*" $current_fg]} {
+                    set new_fg [map_theme_color $current_fg]
+                    if {$new_fg ne $current_fg} {
+                        $widget configure -fg $new_fg
+                    }
+                }
+            }
+            "Toplevel" {
+                set current_bg [$widget cget -bg]
+                if {[string match "#*" $current_bg]} {
+                    set new_bg [map_theme_color $current_bg]
+                    if {$new_bg ne $current_bg} {
+                        $widget configure -bg $new_bg
+                    }
+                }
+            }
+            "Labelframe" {
+                set current_bg [$widget cget -bg]
+                set current_fg [$widget cget -fg]
+
+                if {[string match "#*" $current_bg]} {
+                    set new_bg [map_theme_color $current_bg]
+                    if {$new_bg ne $current_bg} {
+                        $widget configure -bg $new_bg
+                    }
+                }
+
+                if {[string match "#*" $current_fg]} {
+                    set new_fg [map_theme_color $current_fg]
+                    if {$new_fg ne $current_fg} {
+                        $widget configure -fg $new_fg
+                    }
+                }
+            }
+        }
+    }
+
+    # Recursively update children
+    foreach child [winfo children $widget] {
+        update_widget_colors $child
+    }
+}
+
+# Start watching theme file for changes using inotify
+proc start_theme_watcher {{config_name ""} {interval 2000}} {
+    global theme_watcher_channel theme_watcher_config
+
+    if {$config_name eq ""} {
+        set config_name "theme"
+    }
+
+    set theme_watcher_config $config_name
+    set theme_file [file normalize "~/.config/wallust/${config_name}.tcl"]
+
+    # Check if inotifywait is available
+    if {[catch {exec which inotifywait} inotify_path]} {
+        # inotifywait not available, fall back to polling
+        start_theme_watcher_polling $config_name $interval
+        return
+    }
+
+    # Start inotifywait to monitor the theme file
+    # -m = monitor continuously
+    # -e close_write = watch for close after write (most reliable for file updates)
+    # -q = quiet mode, only output events
+    if {[catch {open "|inotifywait -m -q -e close_write -e modify $theme_file 2>/dev/null" r} theme_watcher_channel]} {
+        # Failed to start inotifywait, fall back to polling
+        start_theme_watcher_polling $config_name $interval
+        return
+    }
+
+    # Configure channel as non-blocking with line buffering
+    fconfigure $theme_watcher_channel -blocking 0 -buffering line
+
+    # Set up file event to read notifications
+    fileevent $theme_watcher_channel readable [list handle_theme_change $config_name $interval]
+}
+
+# Handle inotify notification
+proc handle_theme_change {config_name interval} {
+    global theme_watcher_channel
+
+    if {[eof $theme_watcher_channel]} {
+        catch {close $theme_watcher_channel}
+        # inotifywait died, restart it
+        after 1000 [list start_theme_watcher $config_name $interval]
+        return
+    }
+
+    if {[gets $theme_watcher_channel line] >= 0} {
+        # Theme file was modified, reload it immediately
+        reload_theme $config_name
+    }
+}
+
+# Fallback: polling-based theme watcher
+proc start_theme_watcher_polling {config_name interval} {
+    global theme_watcher_mtime
+
+    set theme_file [file normalize "~/.config/wallust/${config_name}.tcl"]
+
+    # Store initial modification time
+    if {[file exists $theme_file]} {
+        set theme_watcher_mtime [file mtime $theme_file]
+    } else {
+        set theme_watcher_mtime 0
+    }
+
+    # Start the polling loop
+    check_theme_file $config_name $interval
+}
+
+# Polling check for theme file changes
+proc check_theme_file {config_name interval} {
+    global theme_watcher_mtime
+
+    set theme_file [file normalize "~/.config/wallust/${config_name}.tcl"]
+
+    if {[file exists $theme_file]} {
+        set current_mtime [file mtime $theme_file]
+
+        if {$current_mtime > $theme_watcher_mtime} {
+            # Theme file has been modified, reload it
+            set theme_watcher_mtime $current_mtime
+            reload_theme $config_name
+        }
+    }
+
+    # Schedule next check
+    after $interval [list check_theme_file $config_name $interval]
+}
