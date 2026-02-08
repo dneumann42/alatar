@@ -56,7 +56,8 @@ proc make_config_section {parent} {
     pack $audio $system \
         -side left \
         -fill x \
-        -expand 1
+        -expand 1 \
+        -padx 2
 
     return $config_path
 }
@@ -76,7 +77,8 @@ proc make_wallpaper_section {parent} {
     pack $wallpapers $porthole \
         -side left \
         -fill x \
-        -expand 1
+        -expand 1 \
+        -padx 2
 
     return $wallpaper_path
 }
@@ -168,8 +170,8 @@ proc build_media_panel {} {
     set spotify_focus_btn [make_icon_button $::main_container.right_card.group.spotify.controls focus "🎵" spotify_focus "Focus Spotify" "" $theme(mauve)]
 
     pack $spotify_prev_btn $spotify_play_pause_btn $spotify_next_btn \
-        -side left -fill x -expand 1
-    pack $spotify_focus_btn -side left -fill x -expand 1
+        -side left -fill x -expand 1 -padx 2
+    pack $spotify_focus_btn -side left -fill x -expand 1 -padx 2
 
     pack $::main_container.right_card.group.spotify.controls -side top -fill x -pady 8
 
@@ -196,7 +198,8 @@ proc build_system_panel {} {
     pack $btn_manuals $btn_keybindings \
         -side left \
         -fill x \
-        -expand 1
+        -expand 1 \
+        -padx 2
 
     frame $::main_container.left_card.group.power_section -bg $theme(surface0)
     set btn1 [make_button $::main_container.left_card.group.power_section shutdown "Shutdown" $theme(accent1) do_shutdown]
