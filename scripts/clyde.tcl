@@ -1,7 +1,7 @@
 #!/usr/bin/env tclsh
 package require Tk
 
-source [file join $::env(HOME) .alatar/lib/theme.tcl] 
+source [file join $::env(HOME) .alatar/lib/theme.tcl]
 
 load_wallust_theme "theme"
 apply_ttk_theme
@@ -52,16 +52,14 @@ option add *Text.selectBackground $::theme(selected_bg)
 option add *Text.selectForeground $::theme(selected_text)
 
 wm title . "Clyde - Package Manager"
-wm geometry . "900x800"
+wm geometry . "1200x800"
 
 ttk::notebook .nb
 pack .nb -fill both -expand 1 -padx 5 -pady 5
 
+# ===== SEARCH TAB =====
 ttk::frame .nb.search
 .nb add .nb.search -text "Search"
-
-ttk::frame .nb.updates
-.nb add .nb.updates -text "Updates"
 
 # Search field
 ttk::frame .nb.search.top
@@ -74,81 +72,105 @@ ttk::entry .nb.search.top.entry -width 40
 pack .nb.search.top.entry -side left -fill x -expand 1 -padx {0 5}
 
 ttk::button .nb.search.top.button -text "Search" -command search_packages
-pack .nb.search.top.button -side left
+pack .nb.search.top.button -side left -padx {0 5}
 
-# Results table
-ttk::frame .nb.search.results
-pack .nb.search.results -fill both -expand 1 -padx 10 -pady {0 10}
+ttk::button .nb.search.top.install -text "Install Selected" -command install_selected_package
+pack .nb.search.top.install -side left
 
-# Create treeview with scrollbar
-ttk::treeview .nb.search.results.tree -columns {repo name version} -show {headings} -yscrollcommand {.nb.search.results.scroll set}
-ttk::scrollbar .nb.search.results.scroll -orient vertical -command {.nb.search.results.tree yview}
+# Main content area with table and details
+ttk::frame .nb.search.content
+pack .nb.search.content -fill both -expand 1 -padx 10 -pady {0 10}
 
-.nb.search.results.tree heading repo -text "Repository"
-.nb.search.results.tree heading name -text "Package"
-.nb.search.results.tree heading version -text "Version"
+# Results table (left side)
+ttk::frame .nb.search.content.left
+pack .nb.search.content.left -side left -fill both -expand 1 -padx {0 5}
 
-.nb.search.results.tree column repo -width 100
-.nb.search.results.tree column name -width 250
-.nb.search.results.tree column version -width 150
+ttk::treeview .nb.search.content.left.tree -columns {repo name version} -show {headings} -yscrollcommand {.nb.search.content.left.scroll set}
+ttk::scrollbar .nb.search.content.left.scroll -orient vertical -command {.nb.search.content.left.tree yview}
 
-pack .nb.search.results.scroll -side right -fill y
-pack .nb.search.results.tree -side left -fill both -expand 1
+.nb.search.content.left.tree heading repo -text "Repository"
+.nb.search.content.left.tree heading name -text "Package"
+.nb.search.content.left.tree heading version -text "Version"
 
-# Debounce timer
-set ::search_timer ""
+.nb.search.content.left.tree column repo -width 100
+.nb.search.content.left.tree column name -width 200
+.nb.search.content.left.tree column version -width 150
 
-# Debounced search trigger
-proc trigger_search {} {
-    global search_timer
-    # Cancel existing timer
-    if {$search_timer ne ""} {
-        after cancel $search_timer
-    }
-    # Set new timer (500ms debounce)
-    set search_timer [after 500 search_packages]
-}
+pack .nb.search.content.left.scroll -side right -fill y
+pack .nb.search.content.left.tree -side left -fill both -expand 1
 
-# Search function
-proc search_packages {} {
-    global search_timer
-    set search_timer ""
+# Package details (right side)
+ttk::frame .nb.search.content.right
+pack .nb.search.content.right -side right -fill both -expand 0 -ipadx 5
 
-    set query [.nb.search.top.entry get]
-    if {$query eq ""} {
-        # Clear results if query is empty
-        .nb.search.results.tree delete [.nb.search.results.tree children {}]
-        return
-    }
+ttk::label .nb.search.content.right.label -text "Package Details"
+pack .nb.search.content.right.label -anchor w -pady {0 5}
 
-    # Clear existing results
-    .nb.search.results.tree delete [.nb.search.results.tree children {}]
+text .nb.search.content.right.text -width 50 -height 30 -wrap word -yscrollcommand {.nb.search.content.right.scroll set} -state disabled
+ttk::scrollbar .nb.search.content.right.scroll -orient vertical -command {.nb.search.content.right.text yview}
 
-    # Run pacman -Ss
-    if {[catch {exec pacman -Ss $query} output]} {
-        # No results or error
-        return
-    }
+pack .nb.search.content.right.scroll -side right -fill y
+pack .nb.search.content.right.text -side left -fill both -expand 1
 
-    # Parse output
-    set lines [split $output "\n"]
-    set i 0
-    while {$i < [llength $lines]} {
-        set line [lindex $lines $i]
+# Bind selection to show details
+bind .nb.search.content.left.tree <<TreeviewSelect>> {show_package_details search}
 
-        # Check if this is a package line (repo/package version)
-        if {[regexp {^([^/]+)/(\S+)\s+(.+)$} $line match repo name version]} {
-            # Next line is the description (skip it for now)
-            .nb.search.results.tree insert {} end -values [list $repo $name $version]
-        }
+# ===== INSTALLED TAB =====
+ttk::frame .nb.installed
+.nb add .nb.installed -text "Installed"
 
-        incr i
-    }
-}
+# Header
+ttk::frame .nb.installed.top
+pack .nb.installed.top -fill x -padx 10 -pady 10
 
-# Bind Enter key and key release for debounced search
-bind .nb.search.top.entry <Return> search_packages
-bind .nb.search.top.entry <KeyRelease> trigger_search
+ttk::label .nb.installed.top.label -text "Installed packages:"
+pack .nb.installed.top.label -side left -padx {0 10}
+
+ttk::button .nb.installed.top.refresh -text "Refresh" -command load_installed
+pack .nb.installed.top.refresh -side left
+
+ttk::label .nb.installed.top.count -text ""
+pack .nb.installed.top.count -side left -padx {10 0}
+
+# Main content area with table and details
+ttk::frame .nb.installed.content
+pack .nb.installed.content -fill both -expand 1 -padx 10 -pady {0 10}
+
+# Installed packages table (left side)
+ttk::frame .nb.installed.content.left
+pack .nb.installed.content.left -side left -fill both -expand 1 -padx {0 5}
+
+ttk::treeview .nb.installed.content.left.tree -columns {name version} -show {headings} -yscrollcommand {.nb.installed.content.left.scroll set}
+ttk::scrollbar .nb.installed.content.left.scroll -orient vertical -command {.nb.installed.content.left.tree yview}
+
+.nb.installed.content.left.tree heading name -text "Package"
+.nb.installed.content.left.tree heading version -text "Version"
+
+.nb.installed.content.left.tree column name -width 300
+.nb.installed.content.left.tree column version -width 200
+
+pack .nb.installed.content.left.scroll -side right -fill y
+pack .nb.installed.content.left.tree -side left -fill both -expand 1
+
+# Package details (right side)
+ttk::frame .nb.installed.content.right
+pack .nb.installed.content.right -side right -fill both -expand 0 -ipadx 5
+
+ttk::label .nb.installed.content.right.label -text "Package Details"
+pack .nb.installed.content.right.label -anchor w -pady {0 5}
+
+text .nb.installed.content.right.text -width 50 -height 30 -wrap word -yscrollcommand {.nb.installed.content.right.scroll set} -state disabled
+ttk::scrollbar .nb.installed.content.right.scroll -orient vertical -command {.nb.installed.content.right.text yview}
+
+pack .nb.installed.content.right.scroll -side right -fill y
+pack .nb.installed.content.right.text -side left -fill both -expand 1
+
+# Bind selection to show details
+bind .nb.installed.content.left.tree <<TreeviewSelect>> {show_package_details installed}
+
+# ===== UPDATES TAB =====
+ttk::frame .nb.updates
+.nb add .nb.updates -text "Updates"
 
 # Updates tab header
 ttk::frame .nb.updates.top
@@ -163,24 +185,43 @@ pack .nb.updates.top.refresh -side left
 ttk::label .nb.updates.top.count -text ""
 pack .nb.updates.top.count -side left -padx {10 0}
 
-# Updates table
-ttk::frame .nb.updates.results
-pack .nb.updates.results -fill both -expand 1 -padx 10 -pady {0 10}
+# Main content area with table and details
+ttk::frame .nb.updates.content
+pack .nb.updates.content -fill both -expand 1 -padx 10 -pady {0 10}
 
-# Create treeview with scrollbar
-ttk::treeview .nb.updates.results.tree -columns {package current new} -show {headings} -yscrollcommand {.nb.updates.results.scroll set}
-ttk::scrollbar .nb.updates.results.scroll -orient vertical -command {.nb.updates.results.tree yview}
+# Updates table (left side)
+ttk::frame .nb.updates.content.left
+pack .nb.updates.content.left -side left -fill both -expand 1 -padx {0 5}
 
-.nb.updates.results.tree heading package -text "Package"
-.nb.updates.results.tree heading current -text "Current Version"
-.nb.updates.results.tree heading new -text "New Version"
+ttk::treeview .nb.updates.content.left.tree -columns {package current new} -show {headings} -yscrollcommand {.nb.updates.content.left.scroll set}
+ttk::scrollbar .nb.updates.content.left.scroll -orient vertical -command {.nb.updates.content.left.tree yview}
 
-.nb.updates.results.tree column package -width 250
-.nb.updates.results.tree column current -width 200
-.nb.updates.results.tree column new -width 200
+.nb.updates.content.left.tree heading package -text "Package"
+.nb.updates.content.left.tree heading current -text "Current Version"
+.nb.updates.content.left.tree heading new -text "New Version"
 
-pack .nb.updates.results.scroll -side right -fill y
-pack .nb.updates.results.tree -side left -fill both -expand 1
+.nb.updates.content.left.tree column package -width 200
+.nb.updates.content.left.tree column current -width 150
+.nb.updates.content.left.tree column new -width 150
+
+pack .nb.updates.content.left.scroll -side right -fill y
+pack .nb.updates.content.left.tree -side left -fill both -expand 1
+
+# Package details (right side)
+ttk::frame .nb.updates.content.right
+pack .nb.updates.content.right -side right -fill both -expand 0 -ipadx 5
+
+ttk::label .nb.updates.content.right.label -text "Package Details"
+pack .nb.updates.content.right.label -anchor w -pady {0 5}
+
+text .nb.updates.content.right.text -width 50 -height 20 -wrap word -yscrollcommand {.nb.updates.content.right.scroll set} -state disabled
+ttk::scrollbar .nb.updates.content.right.scroll -orient vertical -command {.nb.updates.content.right.text yview}
+
+pack .nb.updates.content.right.scroll -side right -fill y
+pack .nb.updates.content.right.text -side left -fill both -expand 1
+
+# Bind selection to show details
+bind .nb.updates.content.left.tree <<TreeviewSelect>> {show_package_details updates}
 
 # Output console for update process
 ttk::frame .nb.updates.console
@@ -208,44 +249,184 @@ pack .nb.updates.bottom.update -side left -padx {0 10}
 ttk::label .nb.updates.bottom.status -text ""
 pack .nb.updates.bottom.status -side left -padx {10 0}
 
-# Load updates function
-proc load_updates {} {
-    # Clear existing results
-    .nb.updates.results.tree delete [.nb.updates.results.tree children {}]
-    .nb.updates.top.count configure -text "Checking for updates..."
-    .nb.updates.top.refresh configure -state disabled
+# ===== SHARED FUNCTIONS =====
 
-    # Force UI update
-    update idletasks
+# Debounce timer
+set ::search_timer ""
 
-    # Show in console
-    console_append "=== Checking for updates ===\n"
-    console_append "Running: pacman -Qu\n\n"
-
-    # Run after a brief delay to allow UI to update
-    after 100 [list load_updates_async]
+# Debounced search trigger
+proc trigger_search {} {
+    global search_timer
+    if {$search_timer ne ""} {
+        after cancel $search_timer
+    }
+    set search_timer [after 500 search_packages]
 }
 
-proc load_updates_async {} {
-    # Run pacman -Qu to check for updates
-    if {[catch {exec pacman -Qu} output]} {
-        # No updates available or error
-        .nb.updates.top.count configure -text "No updates available"
-        .nb.updates.top.refresh configure -state normal
-        console_append "No updates available.\n\n"
+# Search function
+proc search_packages {} {
+    global search_timer
+    set search_timer ""
+
+    set query [.nb.search.top.entry get]
+    if {$query eq ""} {
+        .nb.search.content.left.tree delete [.nb.search.content.left.tree children {}]
         return
     }
 
-    # Parse output
+    .nb.search.content.left.tree delete [.nb.search.content.left.tree children {}]
+
+    if {[catch {exec pacman -Ss $query} output]} {
+        return
+    }
+
+    set lines [split $output "\n"]
+    set i 0
+    while {$i < [llength $lines]} {
+        set line [lindex $lines $i]
+
+        if {[regexp {^([^/]+)/(\S+)\s+(.+)$} $line match repo name version]} {
+            .nb.search.content.left.tree insert {} end -values [list $repo $name $version]
+        }
+
+        incr i
+    }
+}
+
+# Install selected package
+proc install_selected_package {} {
+    set selection [.nb.search.content.left.tree selection]
+    if {[llength $selection] == 0} {
+        return
+    }
+
+    set item [lindex $selection 0]
+    set values [.nb.search.content.left.tree item $item -values]
+    set package [lindex $values 1]
+
+    # Run installation in terminal or show output
+    console_append "=== Installing $package ===\n"
+    console_append "Running: pkexec pacman -S --noconfirm $package\n\n"
+
+    if {[catch {exec setsid -w pkexec pacman -S --noconfirm $package 2>@1} output]} {
+        console_append "Error: $output\n"
+    } else {
+        console_append $output
+        console_append "\n=== Installation completed ===\n"
+    }
+}
+
+# Show package details
+proc show_package_details {tab} {
+    if {$tab eq "search"} {
+        set tree .nb.search.content.left.tree
+        set text .nb.search.content.right.text
+        set use_repo_info 1
+    } elseif {$tab eq "installed"} {
+        set tree .nb.installed.content.left.tree
+        set text .nb.installed.content.right.text
+        set use_repo_info 0
+    } else {
+        set tree .nb.updates.content.left.tree
+        set text .nb.updates.content.right.text
+        set use_repo_info 0
+    }
+
+    set selection [$tree selection]
+    if {[llength $selection] == 0} {
+        return
+    }
+
+    set item [lindex $selection 0]
+    set values [$tree item $item -values]
+
+    if {$tab eq "search"} {
+        set package [lindex $values 1]
+    } else {
+        set package [lindex $values 0]
+    }
+
+    # Get package info
+    if {$use_repo_info} {
+        set cmd "pacman -Si $package"
+    } else {
+        set cmd "pacman -Qi $package"
+    }
+
+    if {[catch {exec {*}$cmd} output]} {
+        set output "Error: Could not retrieve package information"
+    }
+
+    $text configure -state normal
+    $text delete 1.0 end
+    $text insert end $output
+    $text configure -state disabled
+}
+
+# Load installed packages
+proc load_installed {} {
+    .nb.installed.content.left.tree delete [.nb.installed.content.left.tree children {}]
+    .nb.installed.top.count configure -text "Loading..."
+    .nb.installed.top.refresh configure -state disabled
+
+    update idletasks
+
+    after 100 [list load_installed_async]
+}
+
+proc load_installed_async {} {
+    if {[catch {exec pacman -Q} output]} {
+        .nb.installed.top.count configure -text "Error loading packages"
+        .nb.installed.top.refresh configure -state normal
+        return
+    }
+
     set lines [split $output "\n"]
     set count 0
 
     foreach line $lines {
         if {$line eq ""} continue
 
-        # Format: package current-version -> new-version
+        if {[regexp {^(\S+)\s+(\S+)} $line match name version]} {
+            .nb.installed.content.left.tree insert {} end -values [list $name $version]
+            incr count
+        }
+    }
+
+    .nb.installed.top.count configure -text "$count package(s) installed"
+    .nb.installed.top.refresh configure -state normal
+}
+
+# Load updates function
+proc load_updates {} {
+    .nb.updates.content.left.tree delete [.nb.updates.content.left.tree children {}]
+    .nb.updates.top.count configure -text "Checking for updates..."
+    .nb.updates.top.refresh configure -state disabled
+
+    update idletasks
+
+    console_append "=== Checking for updates ===\n"
+    console_append "Running: pacman -Qu\n\n"
+
+    after 100 [list load_updates_async]
+}
+
+proc load_updates_async {} {
+    if {[catch {exec pacman -Qu} output]} {
+        .nb.updates.top.count configure -text "No updates available"
+        .nb.updates.top.refresh configure -state normal
+        console_append "No updates available.\n\n"
+        return
+    }
+
+    set lines [split $output "\n"]
+    set count 0
+
+    foreach line $lines {
+        if {$line eq ""} continue
+
         if {[regexp {^(\S+)\s+(\S+)\s+->\s+(\S+)} $line match package current new]} {
-            .nb.updates.results.tree insert {} end -values [list $package $current $new]
+            .nb.updates.content.left.tree insert {} end -values [list $package $current $new]
             incr count
         }
     }
@@ -278,14 +459,11 @@ proc read_update_output {} {
     global update_channel
 
     if {[eof $update_channel]} {
-        # Close the channel and check exit status
         if {[catch {close $update_channel} err]} {
-            # Non-zero exit or error
             console_append "\n=== Update process finished with errors ===\n"
             console_append "Error: $err\n"
             .nb.updates.bottom.status configure -text "Update failed!"
         } else {
-            # Success
             console_append "\n=== Update process completed successfully ===\n"
             .nb.updates.bottom.status configure -text "Update completed!"
         }
@@ -293,7 +471,6 @@ proc read_update_output {} {
         set update_channel ""
         .nb.updates.bottom.update configure -state normal
 
-        # Refresh the updates list
         after 1000 load_updates
         return
     }
@@ -312,23 +489,17 @@ proc read_update_output {} {
 proc run_update {} {
     global update_channel
 
-    # Check if update is already running
     if {$update_channel ne ""} {
         return
     }
 
-    # Clear console
     console_clear
     console_append "=== Starting system update ===\n"
     console_append "Running: pkexec pacman -Syu --noconfirm\n\n"
 
-    # Disable update button
     .nb.updates.bottom.update configure -state disabled
     .nb.updates.bottom.status configure -text "Updating..."
 
-    # Run pacman update with unbuffered output (using pkexec for polkit authentication)
-    # Use setsid to detach from terminal and force GUI authentication
-    # --noconfirm avoids interactive prompts
     if {[catch {open "|setsid -w stdbuf -oL -eL pkexec pacman -Syu --noconfirm --color=never 2>&1" r} update_channel]} {
         console_append "Error starting update: $update_channel\n"
         set update_channel ""
@@ -337,15 +508,17 @@ proc run_update {} {
         return
     }
 
-    # Configure channel as non-blocking
     fconfigure $update_channel -blocking 0 -buffering none
-
-    # Set up event handler to read output
     fileevent $update_channel readable read_update_output
 }
 
-# Load updates on startup
+# Bind Enter key and key release for debounced search
+bind .nb.search.top.entry <Return> search_packages
+bind .nb.search.top.entry <KeyRelease> trigger_search
+
+# Load initial data
 load_updates
+load_installed
 
 # Start theme watcher (uses inotify for instant updates)
 start_theme_watcher "theme"
