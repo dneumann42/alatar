@@ -18,7 +18,7 @@ if [ -z "$playerctl_bin" ]; then
 fi
 
 # Prefer playerctld if running, then known players, then any.
-PLAYERS="${PLAYERCTL_PLAYERS:-playerctld,spotify,firefox,chromium,mpv,%any}"
+PLAYERS="${PLAYERCTL_PLAYERS:-playerctld,spotube,spotify,firefox,chromium,mpv,%any}"
 
 cmd="${1:-status}"
 

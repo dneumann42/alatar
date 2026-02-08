@@ -11,7 +11,7 @@ namespace eval ::alatar::deps {
 	    libnotify fnott imagemagick inotify-tools polkit-gnome !ensure_wallust
 	    noto-fonts noto-fonts-emoji noto-fonts-cjk
 	    @app.zen_browser.zen
-	    @com.spotify.Client
+	    @com.github.KRTirtho.Spotube
 	    @com.github.tchx84.Flatseal
 	}
     }

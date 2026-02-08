@@ -24,7 +24,7 @@ proc brighten_color {color amount} {
 }
 
 # ─── config ─────────────────────────────────────────
-set ::cache_dir [file tildeexpand ~/.local/cache/porthole]
+set ::cache_dir [file join $env(HOME) .local/cache/porthole]
 file mkdir $::cache_dir
 set ::save_dir  [file join $env(HOME) Media pictures wallpapers]
 file mkdir $::save_dir

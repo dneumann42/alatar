@@ -199,4 +199,3 @@ ensureFonts
 enableService ly@tty2.service
 ensureMakoService
 ensureFlatpakWaylandPermissions
-ensureOctopi
