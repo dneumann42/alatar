@@ -3,12 +3,49 @@
 set dots [::alatar::config::get dotfiles]
 set dots_out [file join [::alatar::config::get alatar] "alatar_dots"]
 
-proc clone_dots {} {
+proc update_dots {} {
     global dots dots_out
-    if {[catch {exec git clone --depth 1 $dots $dots_out 2>@1} result]} {
-        error "Failed to clone dotfiles from $dots: $result"
+
+    # Check if repo already exists
+    if {[file isdirectory $dots_out]} {
+        log "Dotfiles repository already exists, checking for updates..."
+
+        # Check if it's a git repository
+        if {![file isdirectory [file join $dots_out ".git"]]} {
+            error "Directory $dots_out exists but is not a git repository"
+        }
+
+        # Check git status
+        if {[catch {exec git -C $dots_out status --porcelain 2>@1} status_output]} {
+            error "Failed to check git status: $status_output"
+        }
+
+        # If working directory is not clean, warn user
+        if {[string trim $status_output] ne ""} {
+            log "Warning: Working directory has uncommitted changes:"
+            puts $status_output
+            log "Skipping git pull. Please commit or stash changes first."
+            return
+        }
+
+        # Pull latest changes
+        log "Pulling latest changes..."
+        if {[catch {exec git -C $dots_out pull 2>@1} result]} {
+            error "Failed to pull changes: $result"
+        }
+        log "Dotfiles updated successfully!"
+    } else {
+        # Clone the repository
+        log "Cloning dotfiles from $dots..."
+        if {[catch {exec git clone --depth 1 $dots $dots_out 2>@1} result]} {
+            error "Failed to clone dotfiles from $dots: $result"
+        }
+        log "Successfully cloned dotfiles to $dots_out"
     }
-    log "Successfully cloned dotfiles to $dots_out"
+}
+
+proc clone_dots {} {
+    update_dots
 }
 
 proc createSymlink {source target} {

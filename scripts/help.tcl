@@ -249,8 +249,8 @@ set keybindings_body_font [font create -family $base_font(-family) \
 set keybindings_heading_font [font create -family $base_font(-family) \
     -size [expr {$base_font(-size) + 2}] -weight bold]
 
-# Create large Ancient font for tab headings
-set tab_heading_font [font create -family "Ancient" -size 24]
+# Create large Moctavo font for tab headings
+set tab_heading_font [font create -family "Moctavo" -size 24]
 
 apply_ttk_theme
 ttk::style configure Treeview -background $theme(base) -fieldbackground $theme(base) -foreground $theme(lavender) \
@@ -275,7 +275,7 @@ proc build_keybindings_tab {notebook mod_friendly mod_binding} {
     grid columnconfigure $keybindings_tab 0 -weight 1
     grid rowconfigure $keybindings_tab 0 -weight 1
 
-    # Large heading in Ancient font
+    # Large heading in Moctavo font
     set heading_label [ttk::label $frm.heading -text "Keyboard Bindings" -font $tab_heading_font]
     ttk::style configure KeybindingsHeading.TLabel -foreground $theme(peach) -background $theme(base)
     $heading_label configure -style KeybindingsHeading.TLabel
@@ -1037,7 +1037,7 @@ proc build_manuals_tab {notebook} {
     grid columnconfigure $manuals_tab 0 -weight 1
     grid rowconfigure $manuals_tab 0 -weight 1
 
-    # Large heading in Ancient font
+    # Large heading in Moctavo font
     set heading_label [ttk::label $manuals_frame.heading -text "Manuals for Linux" -font $tab_heading_font]
     ttk::style configure ManualsHeading.TLabel -foreground $theme(sapphire) -background $theme(base)
     $heading_label configure -style ManualsHeading.TLabel

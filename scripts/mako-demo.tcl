@@ -60,9 +60,9 @@ puts "9. Long title test"
 send_notification normal "This is a very long notification title to test wrapping" "Body text here" "dialog-information"
 after 1000
 
-# Test with Ancient font rendering
+# Test with Moctavo font rendering
 puts "10. Font rendering test"
-send_notification normal "Font Rendering" "Testing Ancient Medium font\nABCDEFGHIJKLMNOPQRSTUVWXYZ\nabcdefghijklmnopqrstuvwxyz\n0123456789" "preferences-desktop-font"
+send_notification normal "Font Rendering" "Testing Moctavo Medium font\nABCDEFGHIJKLMNOPQRSTUVWXYZ\nabcdefghijklmnopqrstuvwxyz\n0123456789" "preferences-desktop-font"
 
 puts "\nDemo complete! Check your notification area."
 puts "Critical notification will remain until dismissed."
