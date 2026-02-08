@@ -15,7 +15,7 @@ configure_root_window
 
 # Set window title and geometry
 wm title . "nomicron"
-wm geometry . "640x640"
+wm geometry . "640x720"
 
 # Load modules
 set nomicron_dir [file dirname [file normalize [info script]]]

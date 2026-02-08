@@ -51,7 +51,7 @@ proc make_button {parent name text color command} {
         set path "$parent.$name"
     }
 
-    frame $path -bg $theme(button_bg) -highlightthickness 1 -highlightbackground $theme(border)
+    frame $path -bg $theme(button_bg) -relief raised -borderwidth 2 -cursor hand2
     frame $path.square -bg $color -width 12 -height 12
     label $path.label -text $text -bg $theme(button_bg) -fg $theme(button_text)
 
@@ -94,7 +94,7 @@ proc make_icon_button {parent name icon_text command {tooltip ""} {key ""} {bg_c
     # Icon color is always white for colored backgrounds
     set icon_color "#ffffff"
 
-    frame $path -bg $bg_color -highlightthickness 1 -highlightbackground $theme(border)
+    frame $path -bg $bg_color -relief raised -borderwidth 2 -cursor hand2
     label $path.icon -text $icon_text -bg $bg_color -fg $icon_color \
         -font {TkDefaultFont 16}
 

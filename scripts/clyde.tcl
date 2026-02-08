@@ -9,40 +9,57 @@ configure_root_window
 
 # Re-apply and ensure all widgets use wallust theme colors
 ttk::style configure TButton -padding {10 5} \
-    -background $::theme(button_bg) -foreground $::theme(button_text)
+    -background $::theme(button_bg) -foreground $::theme(button_text) \
+    -bordercolor $::theme(border) -relief raised
+
+ttk::style map TButton \
+    -background [list active $::theme(heading_active) pressed $::theme(selected_bg)] \
+    -foreground [list active $::theme(button_text) pressed $::theme(button_text)]
 
 ttk::style configure TLabel -background $::theme(base) -foreground $::theme(text)
 
 ttk::style configure TFrame -background $::theme(base)
 
 ttk::style configure TEntry -fieldbackground $::theme(entry_bg) \
-    -foreground $::theme(entry_text) -insertcolor $::theme(text)
+    -foreground $::theme(entry_text) -insertcolor $::theme(text) \
+    -bordercolor $::theme(border)
 
-# Configure Treeview (table) styling
-ttk::style configure Treeview -background $::theme(surface0) \
+ttk::style map TEntry \
+    -fieldbackground [list readonly $::theme(surface0) disabled $::theme(surface0)] \
+    -bordercolor [list focus $::theme(sapphire)]
+
+# Configure Treeview (table) styling with alternating colors
+ttk::style configure Treeview -background $::theme(base) \
     -foreground $::theme(text) \
-    -fieldbackground $::theme(surface0) \
+    -fieldbackground $::theme(base) \
     -bordercolor $::theme(border) \
     -lightcolor $::theme(border) \
     -darkcolor $::theme(border)
 
-ttk::style configure Treeview.Heading -background $::theme(surface1) \
-    -foreground $::theme(text) \
+ttk::style configure Treeview.Heading -background $::theme(heading) \
+    -foreground $::theme(lavender) \
     -bordercolor $::theme(border) \
     -lightcolor $::theme(border) \
-    -darkcolor $::theme(border)
+    -darkcolor $::theme(border) \
+    -font {TkDefaultFont 10 bold}
 
 ttk::style map Treeview \
-    -background [list selected $::theme(selected_bg)] \
-    -foreground [list selected $::theme(selected_text)]
+    -background [list selected $::theme(mauve)] \
+    -foreground [list selected $::theme(base)]
 
 ttk::style map Treeview.Heading \
-    -background [list active $::theme(heading_active)]
+    -background [list active $::theme(heading_active)] \
+    -foreground [list active $::theme(sapphire)]
 
 # Configure Notebook (tabs) styling
-ttk::style configure TNotebook -background $::theme(base)
+ttk::style configure TNotebook -background $::theme(base) -bordercolor $::theme(border)
 ttk::style configure TNotebook.Tab -background $::theme(tab_bg) \
-    -foreground $::theme(tab_text) -padding {12 6}
+    -foreground $::theme(lavender) -padding {12 6} \
+    -bordercolor $::theme(border)
+
+ttk::style map TNotebook.Tab \
+    -background [list selected $::theme(tab_selected_bg) active $::theme(tab_active_bg)] \
+    -foreground [list selected $::theme(peach) active $::theme(sapphire)]
 
 # Configure text widget colors (not handled by ttk theme)
 option add *Text.background $::theme(entry_bg)
@@ -71,10 +88,16 @@ pack .nb.search.top.label -side left -padx {0 5}
 ttk::entry .nb.search.top.entry -width 40
 pack .nb.search.top.entry -side left -fill x -expand 1 -padx {0 5}
 
-ttk::button .nb.search.top.button -text "Search" -command search_packages
+button .nb.search.top.button -text "Search" -command search_packages \
+    -background $::theme(sapphire) -foreground $::theme(base) \
+    -activebackground $::theme(teal) -activeforeground $::theme(base) \
+    -relief raised -borderwidth 2 -padx 12 -pady 6 -cursor hand2
 pack .nb.search.top.button -side left -padx {0 5}
 
-ttk::button .nb.search.top.install -text "Install Selected" -command install_selected_package
+button .nb.search.top.install -text "Install Selected" -command install_selected_package \
+    -background $::theme(green) -foreground $::theme(base) \
+    -activebackground $::theme(teal) -activeforeground $::theme(base) \
+    -relief raised -borderwidth 2 -padx 12 -pady 6 -cursor hand2
 pack .nb.search.top.install -side left
 
 # Main content area with table and details
@@ -103,7 +126,9 @@ pack .nb.search.content.left.tree -side left -fill both -expand 1
 ttk::frame .nb.search.content.right
 pack .nb.search.content.right -side right -fill both -expand 0 -ipadx 5
 
-ttk::label .nb.search.content.right.label -text "Package Details"
+label .nb.search.content.right.label -text "Package Details" \
+    -background $::theme(base) -foreground $::theme(sapphire) \
+    -font {TkDefaultFont 11 bold}
 pack .nb.search.content.right.label -anchor w -pady {0 5}
 
 text .nb.search.content.right.text -width 50 -height 30 -wrap word -yscrollcommand {.nb.search.content.right.scroll set} -state disabled
@@ -126,11 +151,24 @@ pack .nb.installed.top -fill x -padx 10 -pady 10
 ttk::label .nb.installed.top.label -text "Installed packages:"
 pack .nb.installed.top.label -side left -padx {0 10}
 
-ttk::button .nb.installed.top.refresh -text "Refresh" -command load_installed
+button .nb.installed.top.refresh -text "Refresh" -command load_installed \
+    -background $::theme(lavender) -foreground $::theme(base) \
+    -activebackground $::theme(sapphire) -activeforeground $::theme(base) \
+    -relief raised -borderwidth 2 -padx 12 -pady 6 -cursor hand2
 pack .nb.installed.top.refresh -side left
 
 ttk::label .nb.installed.top.count -text ""
 pack .nb.installed.top.count -side left -padx {10 0}
+
+# Search field for installed packages
+ttk::frame .nb.installed.search
+pack .nb.installed.search -fill x -padx 10 -pady {0 10}
+
+ttk::label .nb.installed.search.label -text "Filter:"
+pack .nb.installed.search.label -side left -padx {0 5}
+
+ttk::entry .nb.installed.search.entry -width 40
+pack .nb.installed.search.entry -side left -fill x -expand 1
 
 # Main content area with table and details
 ttk::frame .nb.installed.content
@@ -156,7 +194,9 @@ pack .nb.installed.content.left.tree -side left -fill both -expand 1
 ttk::frame .nb.installed.content.right
 pack .nb.installed.content.right -side right -fill both -expand 0 -ipadx 5
 
-ttk::label .nb.installed.content.right.label -text "Package Details"
+label .nb.installed.content.right.label -text "Package Details" \
+    -background $::theme(base) -foreground $::theme(sapphire) \
+    -font {TkDefaultFont 11 bold}
 pack .nb.installed.content.right.label -anchor w -pady {0 5}
 
 text .nb.installed.content.right.text -width 50 -height 30 -wrap word -yscrollcommand {.nb.installed.content.right.scroll set} -state disabled
@@ -179,11 +219,24 @@ pack .nb.updates.top -fill x -padx 10 -pady 10
 ttk::label .nb.updates.top.label -text "Available package updates:"
 pack .nb.updates.top.label -side left -padx {0 10}
 
-ttk::button .nb.updates.top.refresh -text "Refresh" -command load_updates
+button .nb.updates.top.refresh -text "Refresh" -command load_updates \
+    -background $::theme(lavender) -foreground $::theme(base) \
+    -activebackground $::theme(sapphire) -activeforeground $::theme(base) \
+    -relief raised -borderwidth 2 -padx 12 -pady 6 -cursor hand2
 pack .nb.updates.top.refresh -side left
 
 ttk::label .nb.updates.top.count -text ""
 pack .nb.updates.top.count -side left -padx {10 0}
+
+# Search field for updates
+ttk::frame .nb.updates.search
+pack .nb.updates.search -fill x -padx 10 -pady {0 10}
+
+ttk::label .nb.updates.search.label -text "Filter:"
+pack .nb.updates.search.label -side left -padx {0 5}
+
+ttk::entry .nb.updates.search.entry -width 40
+pack .nb.updates.search.entry -side left -fill x -expand 1
 
 # Main content area with table and details
 ttk::frame .nb.updates.content
@@ -211,7 +264,9 @@ pack .nb.updates.content.left.tree -side left -fill both -expand 1
 ttk::frame .nb.updates.content.right
 pack .nb.updates.content.right -side right -fill both -expand 0 -ipadx 5
 
-ttk::label .nb.updates.content.right.label -text "Package Details"
+label .nb.updates.content.right.label -text "Package Details" \
+    -background $::theme(base) -foreground $::theme(sapphire) \
+    -font {TkDefaultFont 11 bold}
 pack .nb.updates.content.right.label -anchor w -pady {0 5}
 
 text .nb.updates.content.right.text -width 50 -height 20 -wrap word -yscrollcommand {.nb.updates.content.right.scroll set} -state disabled
@@ -227,7 +282,9 @@ bind .nb.updates.content.left.tree <<TreeviewSelect>> {show_package_details upda
 ttk::frame .nb.updates.console
 pack .nb.updates.console -fill both -expand 0 -padx 10 -pady {0 10}
 
-ttk::label .nb.updates.console.label -text "Update Output:"
+label .nb.updates.console.label -text "Update Output:" \
+    -background $::theme(base) -foreground $::theme(peach) \
+    -font {TkDefaultFont 11 bold}
 pack .nb.updates.console.label -anchor w
 
 text .nb.updates.console.text -height 15 -wrap word -yscrollcommand {.nb.updates.console.scroll set} -state disabled
@@ -241,9 +298,9 @@ ttk::frame .nb.updates.bottom
 pack .nb.updates.bottom -fill x -padx 10 -pady {0 10}
 
 button .nb.updates.bottom.update -text "Update All Packages" -command run_update \
-    -background $::theme(button_bg) -foreground $::theme(button_text) \
-    -activebackground $::theme(heading_active) -activeforeground $::theme(button_text) \
-    -relief raised -borderwidth 1 -padx 10 -pady 5
+    -background $::theme(peach) -foreground $::theme(base) \
+    -activebackground $::theme(red) -activeforeground $::theme(base) \
+    -relief raised -borderwidth 2 -padx 12 -pady 6 -cursor hand2
 pack .nb.updates.bottom.update -side left -padx {0 10}
 
 ttk::label .nb.updates.bottom.status -text ""
@@ -251,8 +308,14 @@ pack .nb.updates.bottom.status -side left -padx {10 0}
 
 # ===== SHARED FUNCTIONS =====
 
-# Debounce timer
+# Debounce timers
 set ::search_timer ""
+set ::installed_search_timer ""
+set ::updates_search_timer ""
+
+# Store all packages for filtering
+set ::all_installed_packages {}
+set ::all_updates {}
 
 # Debounced search trigger
 proc trigger_search {} {
@@ -316,6 +379,56 @@ proc install_selected_package {} {
     }
 }
 
+# Open URL in browser
+proc open_url {url} {
+    catch {exec xdg-open $url &}
+}
+
+# Tag URLs in text widget
+proc tag_urls {text_widget} {
+    global theme
+
+    # Configure URL tag appearance
+    $text_widget tag configure url -foreground $theme(sapphire) -underline 1
+    $text_widget tag bind url <Enter> "$text_widget configure -cursor hand2"
+    $text_widget tag bind url <Leave> "$text_widget configure -cursor xterm"
+
+    # Remove existing url tags
+    $text_widget tag remove url 1.0 end
+
+    # Find and tag URLs using text widget search
+    set pattern {https?://[^\s]+}
+    set start 1.0
+
+    while {1} {
+        # Search for URL pattern
+        set pos [$text_widget search -regexp $pattern $start end]
+        if {$pos eq ""} {
+            break
+        }
+
+        # Get text from found position to end to extract the full URL
+        set remaining [$text_widget get $pos end]
+        if {[regexp $pattern $remaining url]} {
+            set url_length [string length $url]
+            set end_pos [$text_widget index "$pos + $url_length chars"]
+
+            # Apply tag
+            $text_widget tag add url $pos $end_pos
+
+            # Bind click event for this specific range
+            set tag_name "url_[string map {. _} $pos]"
+            $text_widget tag add $tag_name $pos $end_pos
+            $text_widget tag bind $tag_name <Button-1> [list open_url $url]
+
+            # Continue searching from the end of this URL
+            set start $end_pos
+        } else {
+            break
+        }
+    }
+}
+
 # Show package details
 proc show_package_details {tab} {
     if {$tab eq "search"} {
@@ -360,11 +473,53 @@ proc show_package_details {tab} {
     $text configure -state normal
     $text delete 1.0 end
     $text insert end $output
+
+    # Tag and make URLs clickable
+    tag_urls $text
+
     $text configure -state disabled
+}
+
+# Filter installed packages
+proc filter_installed_packages {} {
+    global all_installed_packages
+
+    set query [string tolower [.nb.installed.search.entry get]]
+
+    .nb.installed.content.left.tree delete [.nb.installed.content.left.tree children {}]
+
+    set count 0
+    foreach pkg $all_installed_packages {
+        set name [lindex $pkg 0]
+        set version [lindex $pkg 1]
+
+        if {$query eq "" || [string first $query [string tolower $name]] != -1} {
+            .nb.installed.content.left.tree insert {} end -values [list $name $version]
+            incr count
+        }
+    }
+
+    if {$query eq ""} {
+        .nb.installed.top.count configure -text "$count package(s) installed"
+    } else {
+        set total [llength $all_installed_packages]
+        .nb.installed.top.count configure -text "$count of $total package(s) shown"
+    }
+}
+
+# Debounced installed search trigger
+proc trigger_installed_search {} {
+    global installed_search_timer
+    if {$installed_search_timer ne ""} {
+        after cancel $installed_search_timer
+    }
+    set installed_search_timer [after 300 filter_installed_packages]
 }
 
 # Load installed packages
 proc load_installed {} {
+    global all_installed_packages
+
     .nb.installed.content.left.tree delete [.nb.installed.content.left.tree children {}]
     .nb.installed.top.count configure -text "Loading..."
     .nb.installed.top.refresh configure -state disabled
@@ -375,6 +530,8 @@ proc load_installed {} {
 }
 
 proc load_installed_async {} {
+    global all_installed_packages
+
     if {[catch {exec pacman -Q} output]} {
         .nb.installed.top.count configure -text "Error loading packages"
         .nb.installed.top.refresh configure -state normal
@@ -382,23 +539,63 @@ proc load_installed_async {} {
     }
 
     set lines [split $output "\n"]
-    set count 0
+    set all_installed_packages {}
 
     foreach line $lines {
         if {$line eq ""} continue
 
         if {[regexp {^(\S+)\s+(\S+)} $line match name version]} {
-            .nb.installed.content.left.tree insert {} end -values [list $name $version]
+            lappend all_installed_packages [list $name $version]
+        }
+    }
+
+    .nb.installed.top.refresh configure -state normal
+
+    # Apply current filter
+    filter_installed_packages
+}
+
+# Filter updates
+proc filter_updates {} {
+    global all_updates
+
+    set query [string tolower [.nb.updates.search.entry get]]
+
+    .nb.updates.content.left.tree delete [.nb.updates.content.left.tree children {}]
+
+    set count 0
+    foreach upd $all_updates {
+        set package [lindex $upd 0]
+        set current [lindex $upd 1]
+        set new [lindex $upd 2]
+
+        if {$query eq "" || [string first $query [string tolower $package]] != -1} {
+            .nb.updates.content.left.tree insert {} end -values [list $package $current $new]
             incr count
         }
     }
 
-    .nb.installed.top.count configure -text "$count package(s) installed"
-    .nb.installed.top.refresh configure -state normal
+    if {$query eq ""} {
+        .nb.updates.top.count configure -text "$count update(s) available"
+    } else {
+        set total [llength $all_updates]
+        .nb.updates.top.count configure -text "$count of $total update(s) shown"
+    }
+}
+
+# Debounced updates search trigger
+proc trigger_updates_search {} {
+    global updates_search_timer
+    if {$updates_search_timer ne ""} {
+        after cancel $updates_search_timer
+    }
+    set updates_search_timer [after 300 filter_updates]
 }
 
 # Load updates function
 proc load_updates {} {
+    global all_updates
+
     .nb.updates.content.left.tree delete [.nb.updates.content.left.tree children {}]
     .nb.updates.top.count configure -text "Checking for updates..."
     .nb.updates.top.refresh configure -state disabled
@@ -412,28 +609,33 @@ proc load_updates {} {
 }
 
 proc load_updates_async {} {
+    global all_updates
+
     if {[catch {exec pacman -Qu} output]} {
+        set all_updates {}
         .nb.updates.top.count configure -text "No updates available"
         .nb.updates.top.refresh configure -state normal
         console_append "No updates available.\n\n"
+        filter_updates
         return
     }
 
     set lines [split $output "\n"]
-    set count 0
+    set all_updates {}
 
     foreach line $lines {
         if {$line eq ""} continue
 
         if {[regexp {^(\S+)\s+(\S+)\s+->\s+(\S+)} $line match package current new]} {
-            .nb.updates.content.left.tree insert {} end -values [list $package $current $new]
-            incr count
+            lappend all_updates [list $package $current $new]
         }
     }
 
-    .nb.updates.top.count configure -text "$count update(s) available"
     .nb.updates.top.refresh configure -state normal
-    console_append "Found $count update(s) available.\n\n"
+    console_append "Found [llength $all_updates] update(s) available.\n\n"
+
+    # Apply current filter
+    filter_updates
 }
 
 # Global variable for update process
@@ -515,6 +717,12 @@ proc run_update {} {
 # Bind Enter key and key release for debounced search
 bind .nb.search.top.entry <Return> search_packages
 bind .nb.search.top.entry <KeyRelease> trigger_search
+
+# Bind key release for installed packages filter
+bind .nb.installed.search.entry <KeyRelease> trigger_installed_search
+
+# Bind key release for updates filter
+bind .nb.updates.search.entry <KeyRelease> trigger_updates_search
 
 # Load initial data
 load_updates
