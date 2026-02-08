@@ -36,7 +36,7 @@ proc spotify_previous {} {
 
 proc spotify_focus {} {
     global script_dir
-    set cmd [file join $script_dir "focus-spotify.tcl"]
+    set cmd [file join $script_dir "focus-spotube.tcl"]
     if {[file exists $cmd]} {
         catch {exec setsid $cmd &}
     }
@@ -137,7 +137,7 @@ proc update_spotify_info {} {
     set metadata [get_spotify_metadata]
 
     if {[dict size $metadata] == 0} {
-        $spotify_title_label configure -text "Spotify not playing"
+        $spotify_title_label configure -text "Media not playing"
         $spotify_artist_label configure -text ""
         $spotify_album_label configure -text ""
         $spotify_art_label configure -image ""

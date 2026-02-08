@@ -33,6 +33,7 @@ bind . <Escape> cleanup_and_exit
 wm protocol . WM_DELETE_WINDOW cleanup_and_exit
 
 # Build UI
+build_bordered_container
 build_tome_image
 build_main_layout
 setup_keybindings
