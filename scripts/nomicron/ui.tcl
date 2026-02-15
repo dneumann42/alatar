@@ -53,16 +53,34 @@ proc make_button {parent name text color command} {
 
     frame $path -bg $theme(button_bg) -relief raised -borderwidth 2 -cursor hand2
     frame $path.square -bg $color -width 12 -height 12
-    label $path.label -text $text -bg $theme(button_bg) -fg $theme(button_text)
+
+    # Measure text for canvas sizing
+    set font [font actual TkDefaultFont]
+    set text_width [font measure $font $text]
+    set text_height [font metrics $font -linespace]
+
+    # Create canvas for text with shadow
+    canvas $path.text_canvas -bg $theme(button_bg) -highlightthickness 0 \
+        -width [expr {$text_width + 4}] -height [expr {$text_height + 2}]
+
+    # Shadow text (1px 1px offset)
+    $path.text_canvas create text [expr {$text_width / 2 + 1}] [expr {$text_height / 2 + 1}] \
+        -text $text -font $font -fill "#1a1a1a" -tags shadow
+
+    # Main text
+    $path.text_canvas create text [expr {$text_width / 2}] [expr {$text_height / 2}] \
+        -text $text -font $font -fill $theme(button_text) -tags maintext
 
     pack $path.square -side left -padx {8 0} -pady 8
-    pack $path.label -side left -fill x -expand 1
+    pack $path.text_canvas -side left -fill x -expand 1 -pady 8 -padx {8 8}
 
     # Button behavior
     set enter_cmd [list $path configure -bg $theme(heading_active)]
     set leave_cmd [list $path configure -bg $theme(button_bg)]
-    append enter_cmd "; $path.label configure -bg $theme(heading_active)"
-    append leave_cmd "; $path.label configure -bg $theme(button_bg)"
+    append enter_cmd "; $path.text_canvas configure -bg $theme(heading_active)"
+    append enter_cmd "; $path.text_canvas itemconfigure maintext -fill $theme(button_text)"
+    append leave_cmd "; $path.text_canvas configure -bg $theme(button_bg)"
+    append leave_cmd "; $path.text_canvas itemconfigure maintext -fill $theme(button_text)"
 
     bind $path <Enter> $enter_cmd
     bind $path <Leave> $leave_cmd
@@ -70,9 +88,9 @@ proc make_button {parent name text color command} {
     bind $path.square <Enter> $enter_cmd
     bind $path.square <Leave> $leave_cmd
     bind $path.square <Button-1> $command
-    bind $path.label <Enter> $enter_cmd
-    bind $path.label <Leave> $leave_cmd
-    bind $path.label <Button-1> $command
+    bind $path.text_canvas <Enter> $enter_cmd
+    bind $path.text_canvas <Leave> $leave_cmd
+    bind $path.text_canvas <Button-1> $command
 
     return $path
 }
@@ -95,42 +113,72 @@ proc make_icon_button {parent name icon_text command {tooltip ""} {key ""} {bg_c
     set icon_color "#ffffff"
 
     frame $path -bg $bg_color -relief raised -borderwidth 2 -cursor hand2
-    label $path.icon -text $icon_text -bg $bg_color -fg $icon_color \
-        -font {TkDefaultFont 16}
 
-    pack $path.icon -side left -padx {12 0} -pady 8
+    # Measure icon for canvas sizing
+    set icon_font [font create -family [font actual TkDefaultFont -family] -size 16]
+    set icon_width [font measure $icon_font $icon_text]
+    set icon_height [font metrics $icon_font -linespace]
 
-    # Calculate lighter hover color (add 20 to each RGB component)
+    # Create canvas for icon with shadow
+    canvas $path.icon_canvas -bg $bg_color -highlightthickness 0 \
+        -width [expr {$icon_width + 4}] -height [expr {$icon_height + 2}]
+
+    # Shadow icon (1px 1px offset)
+    $path.icon_canvas create text [expr {$icon_width / 2 + 1}] [expr {$icon_height / 2 + 1}] \
+        -text $icon_text -font $icon_font -fill "#1a1a1a" -tags shadow
+
+    # Main icon
+    $path.icon_canvas create text [expr {$icon_width / 2}] [expr {$icon_height / 2}] \
+        -text $icon_text -font $icon_font -fill $icon_color -tags mainicon
+
+    pack $path.icon_canvas -side left -padx {12 0} -pady 8
+
+    # Calculate lighter hover color
     set hover_color [brighten_color $bg_color 20]
 
     set enter_cmd [list $path configure -bg $hover_color]
     set leave_cmd [list $path configure -bg $bg_color]
-    append enter_cmd "; $path.icon configure -bg $hover_color"
-    append leave_cmd "; $path.icon configure -bg $bg_color"
+    append enter_cmd "; $path.icon_canvas configure -bg $hover_color"
+    append leave_cmd "; $path.icon_canvas configure -bg $bg_color"
 
     if {$key ne ""} {
-        label $path.key -text $key -bg $bg_color -fg $icon_color \
-            -font {TkDefaultFont 9}
-        pack $path.key -side right -padx {0 8} -pady 8
-        append enter_cmd "; $path.key configure -bg $hover_color"
-        append leave_cmd "; $path.key configure -bg $bg_color"
-        bind $path.key <Enter> $enter_cmd
-        bind $path.key <Leave> $leave_cmd
-        bind $path.key <Button-1> $command
+        # Measure key for canvas sizing
+        set key_font [font create -family [font actual TkDefaultFont -family] -size 9]
+        set key_width [font measure $key_font $key]
+        set key_height [font metrics $key_font -linespace]
+
+        # Create canvas for key with shadow
+        canvas $path.key_canvas -bg $bg_color -highlightthickness 0 \
+            -width [expr {$key_width + 4}] -height [expr {$key_height + 2}]
+
+        # Shadow key
+        $path.key_canvas create text [expr {$key_width / 2 + 1}] [expr {$key_height / 2 + 1}] \
+            -text $key -font $key_font -fill "#1a1a1a" -tags shadow
+
+        # Main key
+        $path.key_canvas create text [expr {$key_width / 2}] [expr {$key_height / 2}] \
+            -text $key -font $key_font -fill $icon_color -tags mainkey
+
+        pack $path.key_canvas -side right -padx {0 8} -pady 8
+        append enter_cmd "; $path.key_canvas configure -bg $hover_color"
+        append leave_cmd "; $path.key_canvas configure -bg $bg_color"
+        bind $path.key_canvas <Enter> $enter_cmd
+        bind $path.key_canvas <Leave> $leave_cmd
+        bind $path.key_canvas <Button-1> $command
     }
 
     bind $path <Enter> $enter_cmd
     bind $path <Leave> $leave_cmd
     bind $path <Button-1> $command
-    bind $path.icon <Enter> $enter_cmd
-    bind $path.icon <Leave> $leave_cmd
-    bind $path.icon <Button-1> $command
+    bind $path.icon_canvas <Enter> $enter_cmd
+    bind $path.icon_canvas <Leave> $leave_cmd
+    bind $path.icon_canvas <Button-1> $command
 
     if {$tooltip ne ""} {
         tooltip_bind $path $tooltip
-        tooltip_bind $path.icon $tooltip
+        tooltip_bind $path.icon_canvas $tooltip
         if {$key ne ""} {
-            tooltip_bind $path.key $tooltip
+            tooltip_bind $path.key_canvas $tooltip
         }
     }
 

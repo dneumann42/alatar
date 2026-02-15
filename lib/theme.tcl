@@ -54,8 +54,18 @@ proc load_wallust_theme {{config_name ""}} {
     }
 }
 
+proc setup_theme_fonts {} {
+    global theme
+
+    # Create theme fonts that all apps can use
+    set ::theme_font_heading [font create -family "Ancient" -size 24]
+    set ::theme_font_subheading [font create -family "Ancient" -size 18]
+    set ::theme_font_body [font actual TkDefaultFont]
+}
+
 proc apply_ttk_theme {} {
     global theme
+    setup_theme_fonts
     ttk::style theme use clam
     ttk::style configure TFrame -background $theme(base) \
         -bordercolor $theme(border) -lightcolor $theme(border) -darkcolor $theme(border)
@@ -104,6 +114,211 @@ proc apply_ttk_theme {} {
 proc configure_root_window {} {
     global theme
     . configure -background $theme(base)
+}
+
+# Create a button with text shadow effect (matching calisto's text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.7))
+# Returns the button widget path
+proc create_shadow_button {parent text command args} {
+    global theme
+
+    # Parse additional options
+    array set opts {
+        -bg ""
+        -fg ""
+        -activebackground ""
+        -activeforeground ""
+        -font ""
+        -width 0
+        -height 0
+        -padx 12
+        -pady 6
+        -relief raised
+        -borderwidth 2
+        -cursor hand2
+    }
+
+    foreach {key val} $args {
+        set opts($key) $val
+    }
+
+    # Set defaults from theme if not specified
+    if {$opts(-bg) eq ""} { set opts(-bg) $theme(button_bg) }
+    if {$opts(-fg) eq ""} { set opts(-fg) $theme(button_text) }
+    if {$opts(-activebackground) eq ""} { set opts(-activebackground) $theme(heading_active) }
+    if {$opts(-activeforeground) eq ""} { set opts(-activeforeground) $theme(button_text) }
+
+    # Create a canvas for the button
+    set btn [canvas $parent -bg $opts(-bg) -highlightthickness 0 \
+        -relief $opts(-relief) -borderwidth $opts(-borderwidth) -cursor $opts(-cursor)]
+
+    # Calculate button size
+    if {$opts(-font) ne ""} {
+        set font $opts(-font)
+    } else {
+        set font [font actual TkDefaultFont]
+    }
+
+    # Measure text size
+    set text_width [font measure $font $text]
+    set text_height [font metrics $font -linespace]
+
+    # Add padding
+    set canvas_width [expr {$text_width + $opts(-padx) * 2}]
+    set canvas_height [expr {$text_height + $opts(-pady) * 2}]
+
+    if {$opts(-width) > 0} {
+        set canvas_width $opts(-width)
+    }
+    if {$opts(-height) > 0} {
+        set canvas_height $opts(-height)
+    }
+
+    $btn configure -width $canvas_width -height $canvas_height
+
+    # Center position
+    set center_x [expr {$canvas_width / 2}]
+    set center_y [expr {$canvas_height / 2}]
+
+    # Create shadow text (1px 1px offset with semi-transparent black)
+    # Since Tk doesn't support rgba, we'll use a dark gray (#2a2a2a with ~0.7 opacity looks like rgba(0,0,0,0.7))
+    set shadow [$btn create text [expr {$center_x + 1}] [expr {$center_y + 1}] \
+        -text $text -font $font -fill "#1a1a1a" -tags shadow]
+
+    # Create main text
+    set main_text [$btn create text $center_x $center_y \
+        -text $text -font $font -fill $opts(-fg) -tags maintext]
+
+    # Store references
+    set ${btn}::shadow $shadow
+    set ${btn}::maintext $main_text
+    set ${btn}::normal_bg $opts(-bg)
+    set ${btn}::normal_fg $opts(-fg)
+    set ${btn}::active_bg $opts(-activebackground)
+    set ${btn}::active_fg $opts(-activeforeground)
+
+    # Bind events
+    bind $btn <ButtonPress-1> [list invoke_shadow_button $btn $command]
+    bind $btn <Enter> [list shadow_button_enter $btn]
+    bind $btn <Leave> [list shadow_button_leave $btn]
+
+    return $btn
+}
+
+proc shadow_button_enter {btn} {
+    set active_bg [set ${btn}::active_bg]
+    set active_fg [set ${btn}::active_fg]
+    $btn configure -bg $active_bg
+    $btn itemconfigure maintext -fill $active_fg
+}
+
+proc shadow_button_leave {btn} {
+    set normal_bg [set ${btn}::normal_bg]
+    set normal_fg [set ${btn}::normal_fg]
+    $btn configure -bg $normal_bg
+    $btn itemconfigure maintext -fill $normal_fg
+}
+
+proc invoke_shadow_button {btn command} {
+    # Visual feedback - slightly move text down
+    $btn move shadow 0 1
+    $btn move maintext 0 1
+    after 100 [list $btn move shadow 0 -1]
+    after 100 [list $btn move maintext 0 -1]
+
+    # Execute command
+    if {$command ne ""} {
+        uplevel #0 $command
+    }
+}
+
+# Simple wrapper for creating buttons with text shadow (compatible with standard button syntax)
+# Usage: shadow_button .path -text "Label" -command do_something [other options...]
+proc shadow_button {path args} {
+    global theme
+
+    # Parse args to extract text and command
+    array set opts {
+        -text ""
+        -command ""
+        -bg ""
+        -fg ""
+        -activebackground ""
+        -activeforeground ""
+        -font ""
+        -padx 12
+        -pady 6
+        -relief raised
+        -borderwidth 2
+        -cursor hand2
+        -width 0
+        -height 0
+    }
+
+    foreach {key val} $args {
+        if {[info exists opts($key)]} {
+            set opts($key) $val
+        }
+    }
+
+    # Use theme defaults if not specified
+    if {$opts(-bg) eq ""} { set opts(-bg) $theme(button_bg) }
+    if {$opts(-fg) eq ""} { set opts(-fg) $theme(button_text) }
+    if {$opts(-activebackground) eq ""} { set opts(-activebackground) $theme(heading_active) }
+    if {$opts(-activeforeground) eq ""} { set opts(-activeforeground) $theme(button_text) }
+
+    # Font
+    if {$opts(-font) eq ""} {
+        set font [font actual TkDefaultFont]
+    } else {
+        set font $opts(-font)
+    }
+
+    # Measure text to get proper size
+    set text_width [font measure $font $opts(-text)]
+    set text_height [font metrics $font -linespace]
+
+    # Create canvas for the button
+    canvas $path -bg $opts(-bg) -relief $opts(-relief) -borderwidth $opts(-borderwidth) \
+        -cursor $opts(-cursor) -highlightthickness 0
+
+    # Calculate canvas size including padding
+    set canvas_width [expr {$text_width + $opts(-padx) * 2 + 2}]
+    set canvas_height [expr {$text_height + $opts(-pady) * 2 + 2}]
+
+    $path configure -width $canvas_width -height $canvas_height
+
+    # Center position for text
+    set center_x [expr {$canvas_width / 2}]
+    set center_y [expr {$canvas_height / 2}]
+
+    # Create shadow text (1px 1px offset, dark color matching calisto's rgba(0, 0, 0, 0.7))
+    set shadow [$path create text [expr {$center_x + 1}] [expr {$center_y + 1}] \
+        -text $opts(-text) -font $font -fill "#1a1a1a" -tags shadow]
+
+    # Create main text
+    set maintext [$path create text $center_x $center_y \
+        -text $opts(-text) -font $font -fill $opts(-fg) -tags maintext]
+
+    # Store button state
+    set ${path}::normal_bg $opts(-bg)
+    set ${path}::normal_fg $opts(-fg)
+    set ${path}::active_bg $opts(-activebackground)
+    set ${path}::active_fg $opts(-activeforeground)
+    set ${path}::command $opts(-command)
+
+    # Bind events
+    bind $path <Enter> [list shadow_button_enter $path]
+    bind $path <Leave> [list shadow_button_leave $path]
+    bind $path <Button-1> [list shadow_button_invoke $path]
+
+    return $path
+}
+
+proc shadow_button_invoke {path} {
+    set command [set ${path}::command]
+    if {$command ne ""} {
+        uplevel #0 $command
+    }
 }
 
 # Reload theme and reapply to all widgets

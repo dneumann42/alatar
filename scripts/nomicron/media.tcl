@@ -157,9 +157,11 @@ proc update_spotify_info {} {
 
     # Update play/pause button icon
     if {$status eq "Playing"} {
-        $spotify_play_pause_btn.icon configure -text "⏸"
+        $spotify_play_pause_btn.icon_canvas itemconfigure shadow -text "⏸"
+        $spotify_play_pause_btn.icon_canvas itemconfigure mainicon -text "⏸"
     } else {
-        $spotify_play_pause_btn.icon configure -text "▶"
+        $spotify_play_pause_btn.icon_canvas itemconfigure shadow -text "▶"
+        $spotify_play_pause_btn.icon_canvas itemconfigure mainicon -text "▶"
     }
 
     # Download and display album art

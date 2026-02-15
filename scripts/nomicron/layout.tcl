@@ -108,7 +108,7 @@ proc build_main_layout {} {
         -relief flat \
         -padx 8 \
         -pady 8 \
-        -font {Moctavo 24}
+        -font $::theme_font_heading
 
     # Right group box
     labelframe $::main_container.right_card.group \
@@ -120,7 +120,7 @@ proc build_main_layout {} {
         -padx 8 \
         -pady 8 \
         -width 260 \
-        -font {Moctavo 24}
+        -font $::theme_font_heading
 
     pack $::main_container.left_card.group -fill both -expand 1 -padx 6 -pady 6
     pack $::main_container.right_card.group -fill both -expand 1 -padx 6 -pady 6

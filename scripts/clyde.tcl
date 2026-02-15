@@ -1,5 +1,6 @@
 #!/usr/bin/env tclsh
 package require Tk
+tk appname "com.alatar.clyde"
 
 source [file join $::env(HOME) .alatar/lib/theme.tcl]
 
@@ -88,14 +89,14 @@ pack .nb.search.top.label -side left -padx {0 5}
 ttk::entry .nb.search.top.entry -width 40
 pack .nb.search.top.entry -side left -fill x -expand 1 -padx {0 5}
 
-button .nb.search.top.button -text "Search" -command search_packages \
-    -background $::theme(sapphire) -foreground $::theme(base) \
+shadow_button .nb.search.top.button -text "Search" -command search_packages \
+    -bg $::theme(sapphire) -fg $::theme(base) \
     -activebackground $::theme(teal) -activeforeground $::theme(base) \
     -relief raised -borderwidth 2 -padx 12 -pady 6 -cursor hand2
 pack .nb.search.top.button -side left -padx {0 5}
 
-button .nb.search.top.install -text "Install Selected" -command install_selected_package \
-    -background $::theme(green) -foreground $::theme(base) \
+shadow_button .nb.search.top.install -text "Install Selected" -command install_selected_package \
+    -bg $::theme(green) -fg $::theme(base) \
     -activebackground $::theme(teal) -activeforeground $::theme(base) \
     -relief raised -borderwidth 2 -padx 12 -pady 6 -cursor hand2
 pack .nb.search.top.install -side left
@@ -151,8 +152,8 @@ pack .nb.installed.top -fill x -padx 10 -pady 10
 ttk::label .nb.installed.top.label -text "Installed packages:"
 pack .nb.installed.top.label -side left -padx {0 10}
 
-button .nb.installed.top.refresh -text "Refresh" -command load_installed \
-    -background $::theme(lavender) -foreground $::theme(base) \
+shadow_button .nb.installed.top.refresh -text "Refresh" -command load_installed \
+    -bg $::theme(lavender) -fg $::theme(base) \
     -activebackground $::theme(sapphire) -activeforeground $::theme(base) \
     -relief raised -borderwidth 2 -padx 12 -pady 6 -cursor hand2
 pack .nb.installed.top.refresh -side left
@@ -219,8 +220,8 @@ pack .nb.updates.top -fill x -padx 10 -pady 10
 ttk::label .nb.updates.top.label -text "Available package updates:"
 pack .nb.updates.top.label -side left -padx {0 10}
 
-button .nb.updates.top.refresh -text "Refresh" -command load_updates \
-    -background $::theme(lavender) -foreground $::theme(base) \
+shadow_button .nb.updates.top.refresh -text "Refresh" -command load_updates \
+    -bg $::theme(lavender) -fg $::theme(base) \
     -activebackground $::theme(sapphire) -activeforeground $::theme(base) \
     -relief raised -borderwidth 2 -padx 12 -pady 6 -cursor hand2
 pack .nb.updates.top.refresh -side left
@@ -297,8 +298,8 @@ pack .nb.updates.console.text -side left -fill both -expand 1
 ttk::frame .nb.updates.bottom
 pack .nb.updates.bottom -fill x -padx 10 -pady {0 10}
 
-button .nb.updates.bottom.update -text "Update All Packages" -command run_update \
-    -background $::theme(peach) -foreground $::theme(base) \
+shadow_button .nb.updates.bottom.update -text "Update All Packages" -command run_update \
+    -bg $::theme(peach) -fg $::theme(base) \
     -activebackground $::theme(red) -activeforeground $::theme(base) \
     -relief raised -borderwidth 2 -padx 12 -pady 6 -cursor hand2
 pack .nb.updates.bottom.update -side left -padx {0 10}

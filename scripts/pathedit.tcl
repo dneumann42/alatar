@@ -1,5 +1,6 @@
 #!/usr/bin/env tclsh
 package require Tk
+tk appname "com.alatar.pathedit"
 
 source [file join $::env(HOME) .alatar/lib/theme.tcl] 
 

@@ -3,6 +3,8 @@
 # Main entry point
 
 package require Tk
+# Set instance name for XWayland (will appear in window_properties.instance)
+tk appname "com.alatar.nomicron"
 
 # Set script directory for use by action procedures
 set script_dir [file join $::env(HOME) .alatar/scripts]
@@ -15,7 +17,10 @@ configure_root_window
 
 # Set window title and geometry
 wm title . "nomicron"
-wm geometry . "640x720"
+wm geometry . "640x720+0+32"
+
+# Set unique Sway mark for scratchpad toggling (target this window by instance)
+after 100 {catch {exec swaymsg {[instance="^com\.alatar\.nomicron"] mark nomicron-scratchpad}}}
 
 # Load modules
 set nomicron_dir [file dirname [file normalize [info script]]]

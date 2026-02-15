@@ -9,6 +9,8 @@
 #   q / Esc                 quit
 
 package require Tk
+tk appname "com.alatar.porthole"
+
 source [file join $env(HOME) .alatar/lib/theme.tcl]
 load_wallust_theme "porthole"
 apply_ttk_theme
@@ -55,17 +57,17 @@ frame .nav -bg $theme(surface0) -highlightthickness 1 -highlightbackground $them
 pack .nav -fill x -side bottom
 
 # prev — lavender
-button .nav.prev -text "\u25C0" -command prev \
+shadow_button .nav.prev -text "\u25C0" -command prev \
     -bg $theme(lavender) -fg #ffffff \
     -activebackground [brighten_color $theme(lavender) 25] -activeforeground #ffffff \
-    -relief flat -bd 0 -font {Helvetica 18} -padx 14 -pady 8
+    -relief flat -borderwidth 0 -font {Helvetica 18} -padx 14 -pady 8
 pack .nav.prev -side left -padx {4 0} -pady 4
 
 # next — sapphire
-button .nav.next -text "\u25B6" -command next \
+shadow_button .nav.next -text "\u25B6" -command next \
     -bg $theme(sapphire) -fg #ffffff \
     -activebackground [brighten_color $theme(sapphire) 25] -activeforeground #ffffff \
-    -relief flat -bd 0 -font {Helvetica 18} -padx 14 -pady 8
+    -relief flat -borderwidth 0 -font {Helvetica 18} -padx 14 -pady 8
 pack .nav.next -side right -padx {0 4} -pady 4
 
 # counter — peach
@@ -73,17 +75,17 @@ label .nav.count -text "" -bg $theme(surface0) -fg $theme(peach) -font {Helvetic
 pack .nav.count -side left -padx 12
 
 # save — green
-button .nav.save -text "Save" -command save \
+shadow_button .nav.save -text "Save" -command save \
     -bg $theme(green) -fg #000000 \
     -activebackground [brighten_color $theme(green) 25] -activeforeground #000000 \
-    -relief flat -bd 0 -font {Helvetica 11 bold} -padx 12 -pady 8
+    -relief flat -borderwidth 0 -font {Helvetica 11 bold} -padx 12 -pady 8
 pack .nav.save -side left -padx {0 12} -pady 4
 
 # copy — mauve
-button .nav.copy -text "Copy" -command copy_url \
+shadow_button .nav.copy -text "Copy" -command copy_url \
     -bg $theme(mauve) -fg #000000 \
     -activebackground [brighten_color $theme(mauve) 25] -activeforeground #000000 \
-    -relief flat -bd 0 -font {Helvetica 11 bold} -padx 12 -pady 8
+    -relief flat -borderwidth 0 -font {Helvetica 11 bold} -padx 12 -pady 8
 pack .nav.copy -side left -pady 4
 
 # info — subtext
