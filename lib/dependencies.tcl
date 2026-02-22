@@ -8,7 +8,7 @@ namespace eval ::alatar::deps {
 	    pipewire-audio pipewire-pulse wireplumber pavucontrol
 	    xdg-desktop-portal xdg-desktop-portal-wlr xdg-desktop-portal-gtk xorg-xwayland
 	    zellij yazi tldr waybar mpv yt-dlp ffmpeg swayimg zathura zathura-pdf-mupdf
-	    libnotify fnott imagemagick polkit-gnome snixembed !ensure_wallust
+	    libnotify fnott imagemagick polkit-gnome snixembed calcurse !ensure_wallust
 	    noto-fonts noto-fonts-emoji noto-fonts-cjk
 	    @app.zen_browser.zen
 	    @com.github.KRTirtho.Spotube

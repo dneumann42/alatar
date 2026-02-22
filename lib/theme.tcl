@@ -188,13 +188,14 @@ proc create_shadow_button {parent text command args} {
     set main_text [$btn create text $center_x $center_y \
         -text $text -font $font -fill $opts(-fg) -tags maintext]
 
-    # Store references
-    set ${btn}::shadow $shadow
-    set ${btn}::maintext $main_text
-    set ${btn}::normal_bg $opts(-bg)
-    set ${btn}::normal_fg $opts(-fg)
-    set ${btn}::active_bg $opts(-activebackground)
-    set ${btn}::active_fg $opts(-activeforeground)
+    # Store references in global array
+    global shadow_button_state
+    set shadow_button_state($btn,shadow) $shadow
+    set shadow_button_state($btn,maintext) $main_text
+    set shadow_button_state($btn,normal_bg) $opts(-bg)
+    set shadow_button_state($btn,normal_fg) $opts(-fg)
+    set shadow_button_state($btn,active_bg) $opts(-activebackground)
+    set shadow_button_state($btn,active_fg) $opts(-activeforeground)
 
     # Bind events
     bind $btn <ButtonPress-1> [list invoke_shadow_button $btn $command]
@@ -205,15 +206,17 @@ proc create_shadow_button {parent text command args} {
 }
 
 proc shadow_button_enter {btn} {
-    set active_bg [set ${btn}::active_bg]
-    set active_fg [set ${btn}::active_fg]
+    global shadow_button_state
+    set active_bg $shadow_button_state($btn,active_bg)
+    set active_fg $shadow_button_state($btn,active_fg)
     $btn configure -bg $active_bg
     $btn itemconfigure maintext -fill $active_fg
 }
 
 proc shadow_button_leave {btn} {
-    set normal_bg [set ${btn}::normal_bg]
-    set normal_fg [set ${btn}::normal_fg]
+    global shadow_button_state
+    set normal_bg $shadow_button_state($btn,normal_bg)
+    set normal_fg $shadow_button_state($btn,normal_fg)
     $btn configure -bg $normal_bg
     $btn itemconfigure maintext -fill $normal_fg
 }
@@ -299,12 +302,13 @@ proc shadow_button {path args} {
     set maintext [$path create text $center_x $center_y \
         -text $opts(-text) -font $font -fill $opts(-fg) -tags maintext]
 
-    # Store button state
-    set ${path}::normal_bg $opts(-bg)
-    set ${path}::normal_fg $opts(-fg)
-    set ${path}::active_bg $opts(-activebackground)
-    set ${path}::active_fg $opts(-activeforeground)
-    set ${path}::command $opts(-command)
+    # Store button state in global array
+    global shadow_button_state
+    set shadow_button_state($path,normal_bg) $opts(-bg)
+    set shadow_button_state($path,normal_fg) $opts(-fg)
+    set shadow_button_state($path,active_bg) $opts(-activebackground)
+    set shadow_button_state($path,active_fg) $opts(-activeforeground)
+    set shadow_button_state($path,command) $opts(-command)
 
     # Bind events
     bind $path <Enter> [list shadow_button_enter $path]
@@ -315,7 +319,8 @@ proc shadow_button {path args} {
 }
 
 proc shadow_button_invoke {path} {
-    set command [set ${path}::command]
+    global shadow_button_state
+    set command $shadow_button_state($path,command)
     if {$command ne ""} {
         uplevel #0 $command
     }
