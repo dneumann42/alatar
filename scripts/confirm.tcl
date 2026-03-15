@@ -24,7 +24,7 @@ wm resizable . 0 0
 
 # Remove title bar on sway (will be treated as floating due to small size)
 # We set a fixed geometry and center it after mapping
-wm geometry . "320x120"
+wm geometry . "360x150"
 
 # Outer border frame
 frame .border -bg $::theme(border) -relief flat -borderwidth 2
@@ -38,7 +38,7 @@ label .border.inner.msg \
     -text $message \
     -background $::theme(base) \
     -foreground $::theme(text) \
-    -font {TkDefaultFont 11} \
+    -font $::theme_font_heading \
     -wraplength 280 \
     -justify center \
     -pady 12
