@@ -1,0 +1,16 @@
+#!/bin/bash
+# Toggle HDMI-A-1 between native ultrawide (2560x1080) and 16:9 (1920x1080)
+
+OUTPUT="HDMI-A-1"
+NATIVE="2560x1080"
+NARROW="1920x1080"
+
+current=$(swaymsg -t get_outputs -r | jq -r ".[] | select(.name==\"$OUTPUT\") | \"\(.current_mode.width)x\(.current_mode.height)\"")
+
+if [ "$current" = "$NATIVE" ]; then
+    swaymsg output "$OUTPUT" mode "${NARROW}@60Hz"
+    echo "Switched to 16:9 ($NARROW)"
+else
+    swaymsg output "$OUTPUT" mode "${NATIVE}@75.001Hz"
+    echo "Switched to ultrawide ($NATIVE)"
+fi

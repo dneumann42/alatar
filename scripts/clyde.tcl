@@ -90,14 +90,14 @@ ttk::entry .nb.search.top.entry -width 40
 pack .nb.search.top.entry -side left -fill x -expand 1 -padx {0 5}
 
 shadow_button .nb.search.top.button -text "Search" -command search_packages \
-    -bg $::theme(sapphire) -fg $::theme(base) \
-    -activebackground $::theme(teal) -activeforeground $::theme(base) \
+    -bg $::theme(sapphire) -fg $::theme(text) \
+    -activebackground $::theme(teal) -activeforeground $::theme(text) \
     -relief raised -borderwidth 2 -padx 12 -pady 6 -cursor hand2
 pack .nb.search.top.button -side left -padx {0 5}
 
 shadow_button .nb.search.top.install -text "Install Selected" -command install_selected_package \
-    -bg $::theme(green) -fg $::theme(base) \
-    -activebackground $::theme(teal) -activeforeground $::theme(base) \
+    -bg $::theme(green) -fg $::theme(text) \
+    -activebackground $::theme(teal) -activeforeground $::theme(text) \
     -relief raised -borderwidth 2 -padx 12 -pady 6 -cursor hand2
 pack .nb.search.top.install -side left
 
@@ -153,10 +153,16 @@ ttk::label .nb.installed.top.label -text "Installed packages:"
 pack .nb.installed.top.label -side left -padx {0 10}
 
 shadow_button .nb.installed.top.refresh -text "Refresh" -command load_installed \
-    -bg $::theme(lavender) -fg $::theme(base) \
-    -activebackground $::theme(sapphire) -activeforeground $::theme(base) \
+    -bg $::theme(lavender) -fg $::theme(text) \
+    -activebackground $::theme(sapphire) -activeforeground $::theme(text) \
     -relief raised -borderwidth 2 -padx 12 -pady 6 -cursor hand2
-pack .nb.installed.top.refresh -side left
+pack .nb.installed.top.refresh -side left -padx {0 5}
+
+shadow_button .nb.installed.top.uninstall -text "Uninstall Selected" -command uninstall_selected_package \
+    -bg $::theme(red) -fg $::theme(text) \
+    -activebackground $::theme(mauve) -activeforeground $::theme(text) \
+    -relief raised -borderwidth 2 -padx 12 -pady 6 -cursor hand2
+pack .nb.installed.top.uninstall -side left
 
 ttk::label .nb.installed.top.count -text ""
 pack .nb.installed.top.count -side left -padx {10 0}
@@ -209,6 +215,21 @@ pack .nb.installed.content.right.text -side left -fill both -expand 1
 # Bind selection to show details
 bind .nb.installed.content.left.tree <<TreeviewSelect>> {show_package_details installed}
 
+# Output console for uninstall process
+ttk::frame .nb.installed.console
+pack .nb.installed.console -fill both -expand 0 -padx 10 -pady {0 10}
+
+label .nb.installed.console.label -text "Uninstall Output:" \
+    -background $::theme(base) -foreground $::theme(red) \
+    -font {TkDefaultFont 11 bold}
+pack .nb.installed.console.label -anchor w
+
+text .nb.installed.console.text -height 8 -wrap word -yscrollcommand {.nb.installed.console.scroll set} -state disabled
+ttk::scrollbar .nb.installed.console.scroll -orient vertical -command {.nb.installed.console.text yview}
+
+pack .nb.installed.console.scroll -side right -fill y
+pack .nb.installed.console.text -side left -fill both -expand 1
+
 # ===== UPDATES TAB =====
 ttk::frame .nb.updates
 .nb add .nb.updates -text "Updates"
@@ -221,10 +242,16 @@ ttk::label .nb.updates.top.label -text "Available package updates:"
 pack .nb.updates.top.label -side left -padx {0 10}
 
 shadow_button .nb.updates.top.refresh -text "Refresh" -command load_updates \
-    -bg $::theme(lavender) -fg $::theme(base) \
-    -activebackground $::theme(sapphire) -activeforeground $::theme(base) \
+    -bg $::theme(lavender) -fg $::theme(text) \
+    -activebackground $::theme(sapphire) -activeforeground $::theme(text) \
     -relief raised -borderwidth 2 -padx 12 -pady 6 -cursor hand2
-pack .nb.updates.top.refresh -side left
+pack .nb.updates.top.refresh -side left -padx {0 5}
+
+shadow_button .nb.updates.top.updateall -text "Update All" -command run_update \
+    -bg $::theme(peach) -fg $::theme(text) \
+    -activebackground $::theme(red) -activeforeground $::theme(text) \
+    -relief raised -borderwidth 2 -padx 12 -pady 6 -cursor hand2
+pack .nb.updates.top.updateall -side left
 
 ttk::label .nb.updates.top.count -text ""
 pack .nb.updates.top.count -side left -padx {10 0}
@@ -299,8 +326,8 @@ ttk::frame .nb.updates.bottom
 pack .nb.updates.bottom -fill x -padx 10 -pady {0 10}
 
 shadow_button .nb.updates.bottom.update -text "Update All Packages" -command run_update \
-    -bg $::theme(peach) -fg $::theme(base) \
-    -activebackground $::theme(red) -activeforeground $::theme(base) \
+    -bg $::theme(peach) -fg $::theme(text) \
+    -activebackground $::theme(red) -activeforeground $::theme(text) \
     -relief raised -borderwidth 2 -padx 12 -pady 6 -cursor hand2
 pack .nb.updates.bottom.update -side left -padx {0 10}
 
@@ -378,6 +405,53 @@ proc install_selected_package {} {
         console_append $output
         console_append "\n=== Installation completed ===\n"
     }
+}
+
+# Append text to installed console
+proc installed_console_append {text} {
+    .nb.installed.console.text configure -state normal
+    .nb.installed.console.text insert end $text
+    .nb.installed.console.text see end
+    .nb.installed.console.text configure -state disabled
+}
+
+# Clear installed console
+proc installed_console_clear {} {
+    .nb.installed.console.text configure -state normal
+    .nb.installed.console.text delete 1.0 end
+    .nb.installed.console.text configure -state disabled
+}
+
+# Uninstall selected package
+proc uninstall_selected_package {} {
+    set selection [.nb.installed.content.left.tree selection]
+    if {[llength $selection] == 0} {
+        return
+    }
+
+    set item [lindex $selection 0]
+    set values [.nb.installed.content.left.tree item $item -values]
+    set package [lindex $values 0]
+
+    installed_console_clear
+    installed_console_append "=== Uninstalling $package ===\n"
+    installed_console_append "Running: pkexec pacman -R --noconfirm $package\n\n"
+
+    .nb.installed.top.uninstall configure -state disabled
+    .nb.installed.top.refresh configure -state disabled
+
+    if {[catch {exec setsid -w pkexec pacman -R --noconfirm $package 2>@1} output]} {
+        installed_console_append "Error: $output\n"
+        installed_console_append "\n=== Uninstall failed ===\n"
+    } else {
+        installed_console_append $output
+        installed_console_append "\n=== Uninstall completed ===\n"
+        # Refresh installed list after successful removal
+        after 500 load_installed
+    }
+
+    .nb.installed.top.uninstall configure -state normal
+    .nb.installed.top.refresh configure -state normal
 }
 
 # Open URL in browser
@@ -594,7 +668,7 @@ proc trigger_updates_search {} {
 }
 
 # Load updates function
-proc load_updates {} {
+proc load_updates {{sync 1}} {
     global all_updates
 
     .nb.updates.content.left.tree delete [.nb.updates.content.left.tree children {}]
@@ -604,19 +678,55 @@ proc load_updates {} {
     update idletasks
 
     console_append "=== Checking for updates ===\n"
-    console_append "Running: pacman -Qu\n\n"
 
-    after 100 [list load_updates_async]
+    after 100 [list load_updates_async $sync]
 }
 
-proc load_updates_async {} {
+proc load_updates_async {{sync 1}} {
     global all_updates
 
-    if {[catch {exec pacman -Qu} output]} {
+    # Prefer checkupdates (pacman-contrib) - runs without root and syncs a temp DB
+    # Fall back to pkexec pacman -Sy then pacman -Qu if checkupdates is not available
+    set use_checkupdates [expr {![catch {exec which checkupdates}]}]
+
+    set output ""
+    set exit_ok 1
+
+    if {$use_checkupdates} {
+        console_append "Running: checkupdates\n\n"
+        if {[catch {exec checkupdates} result]} {
+            # checkupdates exits 2 when no updates - that is not an error
+            set output $result
+        } else {
+            set output $result
+        }
+    } else {
+        if {$sync} {
+            # Sync the package DB first (required to detect updates), then query
+            console_append "Running: pkexec pacman -Sy\n"
+            if {[catch {exec pkexec pacman -Sy 2>@1} sync_out]} {
+                console_append "Warning: DB sync failed: $sync_out\n\n"
+            } else {
+                console_append $sync_out
+                console_append "\n"
+            }
+        }
+        console_append "Running: pacman -Qu\n\n"
+        if {[catch {exec pacman -Qu} result]} {
+            set output $result
+            if {$output eq ""} {
+                set exit_ok 0
+            }
+        } else {
+            set output $result
+        }
+    }
+
+    if {!$exit_ok} {
         set all_updates {}
-        .nb.updates.top.count configure -text "No updates available"
+        .nb.updates.top.count configure -text "Error checking updates"
         .nb.updates.top.refresh configure -state normal
-        console_append "No updates available.\n\n"
+        console_append "Error: could not check for updates.\n\n"
         filter_updates
         return
     }
@@ -633,7 +743,13 @@ proc load_updates_async {} {
     }
 
     .nb.updates.top.refresh configure -state normal
-    console_append "Found [llength $all_updates] update(s) available.\n\n"
+
+    if {[llength $all_updates] == 0} {
+        .nb.updates.top.count configure -text "No updates available"
+        console_append "No updates available.\n\n"
+    } else {
+        console_append "Found [llength $all_updates] update(s) available.\n\n"
+    }
 
     # Apply current filter
     filter_updates
@@ -673,8 +789,9 @@ proc read_update_output {} {
 
         set update_channel ""
         .nb.updates.bottom.update configure -state normal
+        .nb.updates.top.updateall configure -state normal
 
-        after 1000 load_updates
+        after 1000 [list load_updates 0]
         return
     }
 
@@ -701,12 +818,14 @@ proc run_update {} {
     console_append "Running: pkexec pacman -Syu --noconfirm\n\n"
 
     .nb.updates.bottom.update configure -state disabled
+    .nb.updates.top.updateall configure -state disabled
     .nb.updates.bottom.status configure -text "Updating..."
 
     if {[catch {open "|setsid -w stdbuf -oL -eL pkexec pacman -Syu --noconfirm --color=never 2>&1" r} update_channel]} {
         console_append "Error starting update: $update_channel\n"
         set update_channel ""
         .nb.updates.bottom.update configure -state normal
+        .nb.updates.top.updateall configure -state normal
         .nb.updates.bottom.status configure -text "Update failed!"
         return
     }
@@ -725,8 +844,8 @@ bind .nb.installed.search.entry <KeyRelease> trigger_installed_search
 # Bind key release for updates filter
 bind .nb.updates.search.entry <KeyRelease> trigger_updates_search
 
-# Load initial data
-load_updates
+# Load initial data - skip DB sync on startup to avoid password prompt
+load_updates 0
 load_installed
 
 # Start theme watcher (uses inotify for instant updates)
