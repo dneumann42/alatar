@@ -834,6 +834,644 @@ proc run_update {} {
     fileevent $update_channel readable read_update_output
 }
 
+# ===== FLATPAKS TAB =====
+ttk::frame .nb.flatpaks
+.nb add .nb.flatpaks -text "Flatpaks"
+
+# Header bar
+ttk::frame .nb.flatpaks.top
+pack .nb.flatpaks.top -fill x -padx 10 -pady 10
+
+ttk::label .nb.flatpaks.top.label -text "Installed Flatpaks:"
+pack .nb.flatpaks.top.label -side left -padx {0 10}
+
+shadow_button .nb.flatpaks.top.refresh -text "Refresh" -command load_flatpaks \
+    -bg $::theme(lavender) -fg $::theme(text) \
+    -activebackground $::theme(sapphire) -activeforeground $::theme(text) \
+    -relief raised -borderwidth 2 -padx 12 -pady 6 -cursor hand2
+pack .nb.flatpaks.top.refresh -side left -padx {0 5}
+
+ttk::label .nb.flatpaks.top.count -text ""
+pack .nb.flatpaks.top.count -side left -padx {5 0}
+
+# Filter bar
+ttk::frame .nb.flatpaks.filter
+pack .nb.flatpaks.filter -fill x -padx 10 -pady {0 6}
+
+ttk::label .nb.flatpaks.filter.label -text "Filter:"
+pack .nb.flatpaks.filter.label -side left -padx {0 5}
+
+ttk::entry .nb.flatpaks.filter.entry -width 40
+pack .nb.flatpaks.filter.entry -side left -fill x -expand 1
+
+# Bottom section: search + results + console — packed FIRST so it's always visible
+ttk::frame .nb.flatpaks.bottom
+pack .nb.flatpaks.bottom -side bottom -fill x -padx 10 -pady {0 10}
+
+# Search Flathub bar
+ttk::frame .nb.flatpaks.bottom.searchbar
+pack .nb.flatpaks.bottom.searchbar -fill x -pady {4 0}
+
+label .nb.flatpaks.bottom.searchbar.label -text "Search Flathub:" \
+    -bg $::theme(base) -fg $::theme(sapphire) -font {TkDefaultFont 10 bold}
+pack .nb.flatpaks.bottom.searchbar.label -side left -padx {0 8}
+
+ttk::entry .nb.flatpaks.bottom.searchbar.entry -width 36
+pack .nb.flatpaks.bottom.searchbar.entry -side left -fill x -expand 1 -padx {0 5}
+
+shadow_button .nb.flatpaks.bottom.searchbar.btn -text "Search" \
+    -command search_flatpaks \
+    -bg $::theme(sapphire) -fg $::theme(text) \
+    -activebackground $::theme(teal) -activeforeground $::theme(text) \
+    -relief raised -borderwidth 2 -padx 12 -pady 6 -cursor hand2
+pack .nb.flatpaks.bottom.searchbar.btn -side left -padx {0 5}
+
+shadow_button .nb.flatpaks.bottom.searchbar.install -text "Install Selected" \
+    -command flatpak_install_selected \
+    -bg $::theme(green) -fg $::theme(text) \
+    -activebackground $::theme(teal) -activeforeground $::theme(text) \
+    -relief raised -borderwidth 2 -padx 12 -pady 6 -cursor hand2
+pack .nb.flatpaks.bottom.searchbar.install -side left
+
+# Search results treeview
+ttk::frame .nb.flatpaks.bottom.searchresults
+pack .nb.flatpaks.bottom.searchresults -fill x -pady {2 4}
+
+ttk::treeview .nb.flatpaks.bottom.searchresults.tree \
+    -columns {name appid version description} -show headings \
+    -height 5 \
+    -yscrollcommand {.nb.flatpaks.bottom.searchresults.scroll set}
+ttk::scrollbar .nb.flatpaks.bottom.searchresults.scroll \
+    -orient vertical -command {.nb.flatpaks.bottom.searchresults.tree yview}
+
+.nb.flatpaks.bottom.searchresults.tree heading name        -text "Name"
+.nb.flatpaks.bottom.searchresults.tree heading appid       -text "App ID"
+.nb.flatpaks.bottom.searchresults.tree heading version     -text "Version"
+.nb.flatpaks.bottom.searchresults.tree heading description -text "Description"
+
+.nb.flatpaks.bottom.searchresults.tree column name        -width 160
+.nb.flatpaks.bottom.searchresults.tree column appid       -width 220
+.nb.flatpaks.bottom.searchresults.tree column version     -width 80
+.nb.flatpaks.bottom.searchresults.tree column description -width 340
+
+pack .nb.flatpaks.bottom.searchresults.scroll -side right -fill y
+pack .nb.flatpaks.bottom.searchresults.tree   -side left  -fill x -expand 1
+
+# Console output
+ttk::frame .nb.flatpaks.bottom.console
+pack .nb.flatpaks.bottom.console -fill x -pady {0 4}
+
+label .nb.flatpaks.bottom.console.label -text "Output:" \
+    -bg $::theme(base) -fg $::theme(peach) -font {TkDefaultFont 11 bold}
+pack .nb.flatpaks.bottom.console.label -anchor w
+
+text .nb.flatpaks.bottom.console.text \
+    -height 5 -wrap word \
+    -yscrollcommand {.nb.flatpaks.bottom.console.scroll set} -state disabled
+ttk::scrollbar .nb.flatpaks.bottom.console.scroll \
+    -orient vertical -command {.nb.flatpaks.bottom.console.text yview}
+
+pack .nb.flatpaks.bottom.console.scroll -side right -fill y
+pack .nb.flatpaks.bottom.console.text   -side left  -fill both -expand 1
+
+# Main content: icon grid (left) + detail panel (right) — expands to fill remaining space
+ttk::frame .nb.flatpaks.content
+pack .nb.flatpaks.content -fill both -expand 1 -padx 10 -pady {0 6}
+
+# Left: scrollable icon grid
+ttk::frame .nb.flatpaks.content.gridframe
+pack .nb.flatpaks.content.gridframe -side left -fill both -expand 1 -padx {0 5}
+
+canvas .nb.flatpaks.content.gridframe.canvas \
+    -bg $::theme(base) -highlightthickness 0 \
+    -yscrollcommand {.nb.flatpaks.content.gridframe.scroll set}
+ttk::scrollbar .nb.flatpaks.content.gridframe.scroll \
+    -orient vertical -command {.nb.flatpaks.content.gridframe.canvas yview}
+
+pack .nb.flatpaks.content.gridframe.scroll -side right -fill y
+pack .nb.flatpaks.content.gridframe.canvas -side left -fill both -expand 1
+
+# Inner frame inside canvas for the grid cards
+frame .nb.flatpaks.content.gridframe.canvas.inner -bg $::theme(base)
+.nb.flatpaks.content.gridframe.canvas create window 0 0 \
+    -anchor nw -window .nb.flatpaks.content.gridframe.canvas.inner \
+    -tags inner_window
+
+bind .nb.flatpaks.content.gridframe.canvas.inner <Configure> {
+    .nb.flatpaks.content.gridframe.canvas configure \
+        -scrollregion [.nb.flatpaks.content.gridframe.canvas bbox all]
+}
+bind .nb.flatpaks.content.gridframe.canvas <Button-4> {
+    .nb.flatpaks.content.gridframe.canvas yview scroll -3 units
+}
+bind .nb.flatpaks.content.gridframe.canvas <Button-5> {
+    .nb.flatpaks.content.gridframe.canvas yview scroll 3 units
+}
+
+# Right: detail panel
+ttk::frame .nb.flatpaks.content.detail
+pack .nb.flatpaks.content.detail -side right -fill y -padx {5 0}
+
+# App icon (large)
+label .nb.flatpaks.content.detail.icon \
+    -bg $::theme(surface0) -relief flat \
+    -width 96 -height 96
+pack .nb.flatpaks.content.detail.icon -pady {4 8}
+
+# App name
+label .nb.flatpaks.content.detail.name \
+    -text "" -bg $::theme(base) -fg $::theme(text) \
+    -font {TkDefaultFont 13 bold} -wraplength 220 -justify center
+pack .nb.flatpaks.content.detail.name -fill x -padx 4
+
+# App ID
+label .nb.flatpaks.content.detail.appid \
+    -text "" -bg $::theme(base) -fg $::theme(subtext0) \
+    -font {TkDefaultFont 9} -wraplength 220 -justify center
+pack .nb.flatpaks.content.detail.appid -fill x -padx 4
+
+# Version
+label .nb.flatpaks.content.detail.version \
+    -text "" -bg $::theme(base) -fg $::theme(overlay0) \
+    -font {TkDefaultFont 9}
+pack .nb.flatpaks.content.detail.version -pady {2 10}
+
+# Running status label
+label .nb.flatpaks.content.detail.running \
+    -text "" -bg $::theme(base) -fg $::theme(green) \
+    -font {TkDefaultFont 9 bold}
+pack .nb.flatpaks.content.detail.running -pady {0 8}
+
+# Action buttons
+shadow_button .nb.flatpaks.content.detail.run -text "Run" \
+    -command flatpak_run_selected \
+    -bg $::theme(green) -fg $::theme(text) \
+    -activebackground $::theme(teal) -activeforeground $::theme(text) \
+    -relief raised -borderwidth 2 -padx 16 -pady 6 -cursor hand2
+pack .nb.flatpaks.content.detail.run -fill x -padx 8 -pady 2
+
+shadow_button .nb.flatpaks.content.detail.kill -text "Kill" \
+    -command flatpak_kill_selected \
+    -bg $::theme(red) -fg $::theme(text) \
+    -activebackground $::theme(mauve) -activeforeground $::theme(text) \
+    -relief raised -borderwidth 2 -padx 16 -pady 6 -cursor hand2
+# Kill button is packed/unpacked dynamically based on running state
+
+shadow_button .nb.flatpaks.content.detail.uninstall -text "Uninstall" \
+    -command flatpak_uninstall_selected \
+    -bg $::theme(surface1) -fg $::theme(text) \
+    -activebackground $::theme(red) -activeforeground $::theme(text) \
+    -relief raised -borderwidth 2 -padx 16 -pady 6 -cursor hand2
+pack .nb.flatpaks.content.detail.uninstall -fill x -padx 8 -pady 2
+
+# ===== FLATPAKS STATE =====
+set ::all_flatpaks         {}
+set ::flatpak_running      {}
+set ::selected_flatpak     ""
+array set ::flatpak_icons  {}
+set ::flatpak_search_timer ""
+set ::flatpak_placeholder  ""
+
+# ===== FLATPAK PROCS =====
+
+proc flatpak_console_append {text} {
+    .nb.flatpaks.bottom.console.text configure -state normal
+    .nb.flatpaks.bottom.console.text insert end $text
+    .nb.flatpaks.bottom.console.text see end
+    .nb.flatpaks.bottom.console.text configure -state disabled
+}
+
+proc flatpak_console_clear {} {
+    .nb.flatpaks.bottom.console.text configure -state normal
+    .nb.flatpaks.bottom.console.text delete 1.0 end
+    .nb.flatpaks.bottom.console.text configure -state disabled
+}
+
+# Return a cached photo image for an appid at the given size.
+# Falls back to a solid placeholder square.
+proc get_flatpak_icon {appid {size 48}} {
+    global flatpak_icons flatpak_placeholder
+
+    set key "${appid}_${size}"
+    if {[info exists flatpak_icons($key)]} {
+        return $flatpak_icons($key)
+    }
+
+    set candidates [list \
+        "/var/lib/flatpak/appstream/flathub/x86_64/active/icons/128x128/${appid}.png" \
+        "/var/lib/flatpak/exports/share/icons/hicolor/128x128/apps/${appid}.png" \
+        "/var/lib/flatpak/appstream/flathub/x86_64/active/icons/64x64/${appid}.png" \
+        "/var/lib/flatpak/exports/share/icons/hicolor/64x64/apps/${appid}.png" \
+    ]
+
+    set icon_path ""
+    foreach c $candidates {
+        if {[file exists $c]} { set icon_path $c; break }
+    }
+
+    if {$icon_path eq ""} {
+        if {$flatpak_placeholder eq ""} {
+            set flatpak_placeholder [image create photo flatpak_ph \
+                -width $size -height $size]
+            flatpak_ph put $::theme(surface1) -to 0 0 $size $size
+        }
+        set flatpak_icons($key) $flatpak_placeholder
+        return $flatpak_placeholder
+    }
+
+    set orig_name  "fk_orig_[string map {. _ - _} $appid]_${size}"
+    set final_name "fk_img_[string map {. _ - _} $appid]_${size}"
+
+    if {[catch {image create photo $orig_name -file $icon_path} err]} {
+        set flatpak_icons($key) $flatpak_placeholder
+        return $flatpak_placeholder
+    }
+
+    set ow [image width  $orig_name]
+    set oh [image height $orig_name]
+    set sw [expr {max(1, int(ceil(double($ow) / $size)))}]
+    set sh [expr {max(1, int(ceil(double($oh) / $size)))}]
+    set s  [expr {$sw > $sh ? $sw : $sh}]
+
+    image create photo $final_name
+    $final_name copy $orig_name -subsample $s $s
+    image delete $orig_name
+
+    set flatpak_icons($key) $final_name
+    return $final_name
+}
+
+# Build (or rebuild) the icon grid from ::all_flatpaks
+proc build_flatpak_grid {} {
+    global all_flatpaks flatpak_running selected_flatpak
+
+    set inner .nb.flatpaks.content.gridframe.canvas.inner
+    foreach w [winfo children $inner] { destroy $w }
+
+    set card_w  90
+    set card_h  90
+    set pad      8
+    set cols     6
+
+    set i 0
+    foreach entry $all_flatpaks {
+        set name  [lindex $entry 0]
+        set appid [lindex $entry 1]
+        set ver   [lindex $entry 2]
+
+        set col [expr {$i % $cols}]
+        set row [expr {$i / $cols}]
+        set x   [expr {$col * ($card_w + $pad) + $pad}]
+        set y   [expr {$row * ($card_h + $pad) + $pad}]
+
+        set is_selected [expr {$appid eq $selected_flatpak}]
+        set card_bg [expr {$is_selected ? $::theme(selected_bg) : $::theme(surface0)}]
+
+        set card_id "card_[string map {. _ - _} $appid]"
+        set card [frame $inner.$card_id \
+            -bg $card_bg -relief flat \
+            -width $card_w -height $card_h -cursor hand2]
+        place $card -x $x -y $y -width $card_w -height $card_h
+
+        # Icon
+        set img [get_flatpak_icon $appid 48]
+        set icn [label $card.icon -image $img -bg $card_bg -cursor hand2]
+        place $icn -relx 0.5 -y 6 -anchor n
+
+        # Name (truncated)
+        set short [expr {[string length $name] > 10 ? "[string range $name 0 9]…" : $name}]
+        set lbl [label $card.lbl -text $short \
+            -bg $card_bg -fg $::theme(text) \
+            -font {TkDefaultFont 8} -cursor hand2 \
+            -wraplength [expr {$card_w - 4}]]
+        place $lbl -relx 0.5 -rely 1.0 -anchor s -y -4
+
+        # Running dot
+        if {[lsearch $flatpak_running $appid] >= 0} {
+            label $card.dot -text "●" \
+                -bg $card_bg -fg $::theme(green) -font {TkDefaultFont 8}
+            place $card.dot -x 2 -y 2
+        }
+
+        # Click bindings
+        foreach w [list $card $icn $lbl] {
+            bind $w <Button-1> [list select_flatpak $appid $name $ver]
+        }
+        catch {bind $card.dot <Button-1> [list select_flatpak $appid $name $ver]}
+
+        incr i
+    }
+
+    # Resize inner to content
+    set n [llength $all_flatpaks]
+    set rows [expr {max(1, int(ceil(double($n) / $cols)))}]
+    $inner configure \
+        -width  [expr {$cols * ($card_w + $pad) + $pad}] \
+        -height [expr {$rows * ($card_h + $pad) + $pad}]
+
+    update idletasks
+    .nb.flatpaks.content.gridframe.canvas configure \
+        -scrollregion [.nb.flatpaks.content.gridframe.canvas bbox all]
+}
+
+# Select a flatpak: highlight card, populate detail panel
+proc select_flatpak {appid name ver} {
+    global selected_flatpak flatpak_running
+
+    set selected_flatpak $appid
+    build_flatpak_grid
+
+    .nb.flatpaks.content.detail.name    configure -text $name
+    .nb.flatpaks.content.detail.appid   configure -text $appid
+    .nb.flatpaks.content.detail.version configure -text "Version: $ver"
+
+    set img [get_flatpak_icon $appid 96]
+    .nb.flatpaks.content.detail.icon configure -image $img -width 0 -height 0
+
+    set running [expr {[lsearch $flatpak_running $appid] >= 0}]
+    if {$running} {
+        .nb.flatpaks.content.detail.running configure -text "● Running"
+        pack .nb.flatpaks.content.detail.kill \
+            -fill x -padx 8 -pady 2 \
+            -before .nb.flatpaks.content.detail.uninstall
+    } else {
+        .nb.flatpaks.content.detail.running configure -text ""
+        pack forget .nb.flatpaks.content.detail.kill
+    }
+}
+
+# Poll running flatpaks every 3s and refresh indicators
+proc refresh_flatpak_running {} {
+    global flatpak_running selected_flatpak
+
+    if {[catch {exec flatpak ps --columns=application} out]} { set out "" }
+
+    set flatpak_running {}
+    foreach line [split $out "\n"] {
+        set line [string trim $line]
+        if {$line ne ""} { lappend flatpak_running $line }
+    }
+
+    build_flatpak_grid
+
+    if {$selected_flatpak ne ""} {
+        set running [expr {[lsearch $flatpak_running $selected_flatpak] >= 0}]
+        if {$running} {
+            .nb.flatpaks.content.detail.running configure -text "● Running"
+            catch {
+                pack .nb.flatpaks.content.detail.kill \
+                    -fill x -padx 8 -pady 2 \
+                    -before .nb.flatpaks.content.detail.uninstall
+            }
+        } else {
+            .nb.flatpaks.content.detail.running configure -text ""
+            pack forget .nb.flatpaks.content.detail.kill
+        }
+    }
+
+    after 3000 refresh_flatpak_running
+}
+
+# Load installed flatpaks (clears icon cache so reinstalls show fresh icons)
+proc load_flatpaks {} {
+    global flatpak_icons flatpak_placeholder
+
+    .nb.flatpaks.top.refresh configure -state disabled
+    .nb.flatpaks.top.count configure -text "Loading..."
+
+    foreach key [array names flatpak_icons] {
+        catch {
+            if {$flatpak_icons($key) ne $flatpak_placeholder} {
+                image delete $flatpak_icons($key)
+            }
+        }
+    }
+    array unset flatpak_icons
+    set flatpak_placeholder ""
+
+    update idletasks
+    after 50 load_flatpaks_async
+}
+
+proc load_flatpaks_async {} {
+    global all_flatpaks
+
+    if {[catch {exec flatpak list --app --columns=name,application,version} out]} {
+        set out ""
+    }
+
+    set all_flatpaks {}
+    foreach line [split $out "\n"] {
+        if {$line eq ""} continue
+        set parts [split $line "\t"]
+        if {[llength $parts] >= 2} {
+            lappend all_flatpaks [list \
+                [lindex $parts 0] \
+                [lindex $parts 1] \
+                [expr {[llength $parts] >= 3 ? [lindex $parts 2] : ""}]]
+        }
+    }
+
+    .nb.flatpaks.top.refresh configure -state normal
+    .nb.flatpaks.top.count configure -text "[llength $all_flatpaks] installed"
+
+    apply_flatpak_filter
+}
+
+# Filter the grid by the filter entry
+proc apply_flatpak_filter {} {
+    global all_flatpaks
+
+    set query [string tolower [.nb.flatpaks.filter.entry get]]
+    if {$query eq ""} {
+        build_flatpak_grid
+        return
+    }
+
+    set saved $::all_flatpaks
+    set ::all_flatpaks {}
+    foreach entry $saved {
+        set n [string tolower [lindex $entry 0]]
+        set a [string tolower [lindex $entry 1]]
+        if {[string first $query $n] >= 0 || [string first $query $a] >= 0} {
+            lappend ::all_flatpaks $entry
+        }
+    }
+    build_flatpak_grid
+    set ::all_flatpaks $saved
+}
+
+proc trigger_flatpak_filter {} {
+    global flatpak_search_timer
+    if {$flatpak_search_timer ne ""} { after cancel $flatpak_search_timer }
+    set flatpak_search_timer [after 300 apply_flatpak_filter]
+}
+
+# Run the selected flatpak
+proc flatpak_run_selected {} {
+    global selected_flatpak
+    if {$selected_flatpak eq ""} return
+    flatpak_console_append "Launching: $selected_flatpak\n"
+    catch {exec setsid flatpak run $selected_flatpak &}
+}
+
+# Kill the selected flatpak
+proc flatpak_kill_selected {} {
+    global selected_flatpak
+    if {$selected_flatpak eq ""} return
+    flatpak_console_append "Killing: $selected_flatpak\n"
+    if {[catch {exec flatpak kill $selected_flatpak} err]} {
+        flatpak_console_append "Error: $err\n"
+    } else {
+        flatpak_console_append "Killed.\n"
+    }
+    after 500 refresh_flatpak_running
+}
+
+# Uninstall the selected flatpak (async)
+set ::flatpak_uninstall_channel ""
+
+proc flatpak_uninstall_selected {} {
+    global selected_flatpak flatpak_uninstall_channel
+    if {$selected_flatpak eq ""} return
+    if {$flatpak_uninstall_channel ne ""} return
+
+    set appid $selected_flatpak
+    flatpak_console_clear
+    flatpak_console_append "=== Uninstalling $appid ===\n"
+    flatpak_console_append "Running: pkexec flatpak uninstall -y --system $appid\n\n"
+
+    .nb.flatpaks.content.detail.uninstall configure -state disabled
+    .nb.flatpaks.top.refresh configure -state disabled
+
+    if {[catch {open "|stdbuf -oL -eL pkexec flatpak uninstall -y --system $appid 2>&1" r} flatpak_uninstall_channel]} {
+        flatpak_console_append "Error starting uninstall: $flatpak_uninstall_channel\n"
+        set flatpak_uninstall_channel ""
+        .nb.flatpaks.content.detail.uninstall configure -state normal
+        .nb.flatpaks.top.refresh configure -state normal
+        return
+    }
+
+    fconfigure $flatpak_uninstall_channel -blocking 0 -buffering line
+    fileevent $flatpak_uninstall_channel readable \
+        [list read_flatpak_uninstall_output $appid]
+}
+
+proc read_flatpak_uninstall_output {appid} {
+    global flatpak_uninstall_channel
+
+    if {[eof $flatpak_uninstall_channel]} {
+        if {[catch {close $flatpak_uninstall_channel} err]} {
+            flatpak_console_append "\n=== Uninstall failed: $err ===\n"
+        } else {
+            flatpak_console_append "\n=== Uninstall complete ===\n"
+            set ::selected_flatpak ""
+            .nb.flatpaks.content.detail.name    configure -text ""
+            .nb.flatpaks.content.detail.appid   configure -text ""
+            .nb.flatpaks.content.detail.version configure -text ""
+            .nb.flatpaks.content.detail.running configure -text ""
+            .nb.flatpaks.content.detail.icon    configure -image "" -width 96 -height 96
+            pack forget .nb.flatpaks.content.detail.kill
+            after 500 load_flatpaks
+        }
+        set flatpak_uninstall_channel ""
+        .nb.flatpaks.content.detail.uninstall configure -state normal
+        .nb.flatpaks.top.refresh configure -state normal
+        return
+    }
+
+    if {[gets $flatpak_uninstall_channel line] >= 0} {
+        flatpak_console_append "$line\n"
+    }
+}
+
+# Search Flathub
+proc search_flatpaks {} {
+    set query [.nb.flatpaks.bottom.searchbar.entry get]
+    if {$query eq ""} return
+
+    .nb.flatpaks.bottom.searchresults.tree delete [.nb.flatpaks.bottom.searchresults.tree children {}]
+    flatpak_console_clear
+    flatpak_console_append "Searching Flathub for: $query\n"
+
+    if {[catch {exec flatpak search --columns=name,application,version,description $query} out]} {
+        flatpak_console_append "No results.\n"
+        return
+    }
+
+    set count 0
+    foreach line [split $out "\n"] {
+        if {$line eq ""} continue
+        set parts [split $line "\t"]
+        if {[llength $parts] >= 2} {
+            .nb.flatpaks.bottom.searchresults.tree insert {} end -values [list \
+                [lindex $parts 0] \
+                [lindex $parts 1] \
+                [expr {[llength $parts] >= 3 ? [lindex $parts 2] : ""}] \
+                [expr {[llength $parts] >= 4 ? [lindex $parts 3] : ""}]]
+            incr count
+        }
+    }
+    flatpak_console_append "Found $count result(s).\n"
+}
+
+# Install the selected search result (async)
+set ::flatpak_install_channel ""
+
+proc flatpak_install_selected {} {
+    global flatpak_install_channel
+
+    if {$flatpak_install_channel ne ""} return
+
+    set sel [.nb.flatpaks.bottom.searchresults.tree selection]
+    if {[llength $sel] == 0} return
+
+    set vals  [.nb.flatpaks.bottom.searchresults.tree item [lindex $sel 0] -values]
+    set appid [lindex $vals 1]
+
+    flatpak_console_clear
+    flatpak_console_append "=== Installing $appid ===\n"
+    flatpak_console_append "Running: flatpak install -y --system flathub $appid\n\n"
+
+    .nb.flatpaks.bottom.searchbar.install configure -state disabled
+
+    if {[catch {open "|stdbuf -oL -eL flatpak install -y --system flathub $appid 2>&1" r} flatpak_install_channel]} {
+        flatpak_console_append "Error starting install: $flatpak_install_channel\n"
+        set flatpak_install_channel ""
+        .nb.flatpaks.bottom.searchbar.install configure -state normal
+        return
+    }
+
+    fconfigure $flatpak_install_channel -blocking 0 -buffering line
+    fileevent $flatpak_install_channel readable \
+        [list read_flatpak_install_output $appid]
+}
+
+proc read_flatpak_install_output {appid} {
+    global flatpak_install_channel
+
+    if {[eof $flatpak_install_channel]} {
+        if {[catch {close $flatpak_install_channel} err]} {
+            flatpak_console_append "\n=== Install failed: $err ===\n"
+        } else {
+            flatpak_console_append "\n=== Install complete ===\n"
+            after 500 load_flatpaks
+        }
+        set flatpak_install_channel ""
+        .nb.flatpaks.bottom.searchbar.install configure -state normal
+        return
+    }
+
+    if {[gets $flatpak_install_channel line] >= 0} {
+        flatpak_console_append "$line\n"
+    }
+}
+
+# ===== BINDINGS & INIT =====
+
+bind .nb.flatpaks.bottom.searchbar.entry <Return>    search_flatpaks
+bind .nb.flatpaks.filter.entry           <KeyRelease> trigger_flatpak_filter
+
 # Bind Enter key and key release for debounced search
 bind .nb.search.top.entry <Return> search_packages
 bind .nb.search.top.entry <KeyRelease> trigger_search
@@ -847,6 +1485,10 @@ bind .nb.updates.search.entry <KeyRelease> trigger_updates_search
 # Load initial data - skip DB sync on startup to avoid password prompt
 load_updates 0
 load_installed
+load_flatpaks
+
+# Start running state refresh timer
+after 3000 refresh_flatpak_running
 
 # Start theme watcher (uses inotify for instant updates)
 start_theme_watcher "theme"
