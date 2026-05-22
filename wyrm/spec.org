@@ -1,5 +1,0 @@
-#+TITLE: Wyrm spec
-
-* Every word is a constructor
-
-A =value= has a some =type=

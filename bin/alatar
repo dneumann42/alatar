@@ -1,0 +1,5 @@
+#!/usr/bin/env bash
+
+source "$HOME/.alatar_env"
+
+exec csi -s "$ALATAR_HOME/lib/cli.scm" "$@"

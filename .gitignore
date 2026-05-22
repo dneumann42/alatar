@@ -1,3 +1,16 @@
 alatar_dots/
-*.*~
+vendor/
+
+.agents/
+.codex/
 AGENTS.md
+
+*~
+*.*~
+.#*
+\#*#
+
+*.o
+*.so
+*.a
+*.out
